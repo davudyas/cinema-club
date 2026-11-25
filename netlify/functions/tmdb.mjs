@@ -8,6 +8,7 @@ const ALLOWED = [
   /^\/movie\/\d+$/,
   /^\/search\/movie$/,
   /^\/person\/\d+\/movie_credits$/,
+  /^\/trending\/movie\/(day|week)$/,
 ];
 const PASS_PARAMS = ['page', 'sort_by', 'language', 'query', 'include_adult', 'append_to_response',
   'vote_count.gte', 'primary_release_date.gte', 'primary_release_date.lte', 'with_original_language'];

@@ -138,7 +138,18 @@ export async function searchMovies(q) {
     return DEMO.filter((m) => m.title.toLowerCase().includes(ql)).slice(0, 8).map(strip);
   }
   const r = await api('/search/movie', { query: q, include_adult: 'false', language: 'en-US' });
-  return (r.results || []).filter((m) => m.release_date).slice(0, 8).map(norm);
+  // rank: well-known films first, exact title matches boosted, documentaries and barely-rated films pushed down
+  const ql = q.toLowerCase();
+  const ranked = (r.results || []).filter((m) => m.release_date).map((m) => {
+    const t = (m.title || '').toLowerCase();
+    let score = Math.log10((m.vote_count || 0) + 1) * 2;
+    if (t === ql) score += 4; else if (t.startsWith(ql)) score += 1.5;
+    if ((m.genre_ids || []).includes(99)) score -= 4; // documentary / making-of
+    if (!m.poster_path) score -= 2;
+    return { m, score };
+  }).sort((a, b) => b.score - a.score);
+  const solid = ranked.filter((x) => (x.m.vote_count || 0) >= 15);
+  return (solid.length >= 3 ? solid : ranked).slice(0, 7).map((x) => norm(x.m));
 }
 
 export async function personMovies(personId) {
@@ -146,6 +157,14 @@ export async function personMovies(personId) {
   const r = await api(`/person/${personId}/movie_credits`, { language: 'en-US' });
   return (r.cast || []).filter((m) => m.release_date && m.vote_count > 500)
     .sort((a, b) => b.vote_count - a.vote_count).slice(0, 20).map(norm);
+}
+
+// "Popular this week" quick picks for Talk about a film
+export async function trending() {
+  await detectMode();
+  if (mode === 'demo') return DEMO.slice(0, 8).map(strip);
+  const r = await api('/trending/movie/week', { language: 'en-US' });
+  return (r.results || []).filter((m) => m.poster_path && m.release_date).slice(0, 8).map(norm);
 }
 
 export function preload(urls) {

@@ -5,7 +5,13 @@ A movie version of the "game first, then chat" idea: get matched with a random f
 Includes a light and dark theme (follows your device, toggle with ☾/☀︎) and a ✕ Leave button on every screen of a match, from searching to the chat (tap twice).
 
 ## Talk about a film
-Just finished a movie? Tap **💬 Talk about a film**, search it, and you're matched with someone who picked the same film. The "Now discussing" list shows which films others are waiting to talk about, so you can join with one tap. The chat opens straight away with the film pinned and three spoiler-friendly question cards; either person can tap 🎲 to play a movie game together and come back to the chat afterwards.
+Just finished a movie? Tap **💬 Talk about a film**, search it (or tap one of the *Popular this week* posters), and you're matched with someone who picked the same film. The "Now discussing" list shows which films others are waiting to talk about, so you can join with one tap. The chat opens straight away with the film pinned and three spoiler-friendly question cards; tap a question card to ask it; either person can tap 🎲 to play a movie game together and come back to the chat afterwards.
+
+## When nobody's around
+Online counts never include you ("just you here" / "1 other online"). While you wait for a match you can **play the Projectionist** — you stay in the queue (a bar at the bottom says so) and get pulled into a real match the moment someone joins.
+
+## Installable + sound
+Cinema Club can be installed as an app (manifest, icons, network-first service worker in `sw.js`; "📲 Install app" appears in the footer when the browser offers it). Sound effects are generated with Web Audio (`js/sound.js`), with vibration on phones and a mute button.
 
 ## Daily challenge
 📅 Five rounds that are the same for everyone each day (UTC), picked with a date-based seed. Up to 200 points per round (100 for a correct answer + up to 100 for speed), one try per day, streaks, and a shareable result like `🟩🟥🟩🟩🟩 790/1000`. Results are stored only in the player's browser.

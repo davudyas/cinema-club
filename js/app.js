@@ -1,6 +1,7 @@
 // Cinema Club — main app: screens, matchmaking, host-authoritative game loop, chat.
 import { NET_MODE, openChannel, LoopChannel, fileReport } from './net.js';
 import { filterText } from './filter.js';
+import { sfx, buzz, unlock, soundOn, setSound } from './sound.js';
 import * as M from './movies.js';
 import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle, seededRng, hashString,
   WIN_TARGET, MAX_ROUNDS, CHAIN_TURN_MS, CHAIN_MAX_USES } from './games.js';
@@ -62,6 +63,7 @@ function go(screen) {
   app.innerHTML = (VIEWS[screen] || VIEWS.home)();
   app.dataset.screen = screen;
   (AFTER[screen] || (() => {}))();
+  updateQueueBar();
   window.scrollTo(0, 0);
 }
 
@@ -70,22 +72,32 @@ const isDark = () => document.documentElement.dataset.theme === 'dark';
 const SUN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>';
 const MOON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></svg>';
 const themeBtn = () => `<button class="iconbtn" data-act="theme" aria-label="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}" title="${isDark() ? 'Light mode' : 'Dark mode'}">${isDark() ? SUN : MOON}</button>`;
+const soundIcon = () => soundOn()
+  ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
+  : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+const soundBtn = () => `<button class="iconbtn" data-act="sound" aria-label="${soundOn() ? 'Mute sounds' : 'Turn sounds on'}" title="Sound">${soundIcon()}</button>`;
 const leaveBtn = () => `<button class="iconbtn leave" data-act="leavematch" aria-label="Leave match and go home" title="Leave match">✕</button>`;
 const topRight = (...parts) => `<div class="top-r">${parts.join('')}</div>`;
 const FLAG = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>';
 // report is available whenever you're connected to a real person (not the solo bot)
 const reportBtn = () => (S.partner && !['~bot', '~daily'].includes(S.partner.key) ? `<button class="iconbtn report" data-act="report" aria-label="Report ${esc(S.partner.name)}" title="Report">${FLAG}</button>` : '');
 const onlinePill = () => `<span class="online" data-online>${onlineText()}</span>`;
+const othersOnline = () => Math.max(0, S.online - 1); // never count yourself
 function onlineText() {
-  if (NET_MODE === 'local') return `<b></b>${S.online} online (local test)`;
-  if (S.lobbyOk === false) return `<b class="off"></b>offline`;
-  if (S.lobbyOk === null) return `<b class="wait"></b>connecting…`;
-  return `<b></b>${S.online} online`;
+  if (S.lobbyOk === false && NET_MODE !== 'local') return `<b class="off"></b>offline`;
+  if (S.lobbyOk === null && NET_MODE !== 'local') return `<b class="wait"></b>connecting…`;
+  const o = othersOnline();
+  return o ? `<b></b>${o} other${o === 1 ? '' : 's'} online` : `<b class="idle"></b>just you here`;
+}
+function waitCountText() {
+  const o = othersOnline(), w = S.waitingOthers || 0;
+  if (!o) return 'Nobody else is online right now.';
+  return `${o} other${o === 1 ? '' : 's'} online · ${w ? `${w} looking for a match` : 'nobody else searching yet'}`;
 }
 function updateOnline() {
   $$('[data-online]').forEach((el) => (el.innerHTML = onlineText()));
   const w = $('[data-waitcount]');
-  if (w) w.textContent = `${S.online} online · ${S.waiting} looking for a match`;
+  if (w) w.textContent = waitCountText();
 }
 const vsBar = () => `
   <div class="vs">
@@ -143,7 +155,7 @@ const dailyShareHtml = () => `<div class="row share-row"><button class="btn prim
 // ---------- footer + about ----------
 function footerHtml() {
   return `<footer class="foot">
-      <nav><button class="link" data-act="about">About &amp; rules</button><a class="link" href="https://x.com/davudsdiary" target="_blank" rel="noopener">Send feedback on X</a></nav>
+      <nav><button class="link ${installPrompt ? '' : 'hidden'}" data-act="install">📲 Install app</button><button class="link" data-act="about">About &amp; rules</button><a class="link" href="https://x.com/davudsdiary" target="_blank" rel="noopener">Send feedback on X</a></nav>
       <a class="tmdb" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="assets/tmdb-logo.svg" alt="TMDB" width="92" height="12"><span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span></a>
     </footer>`;
 }
@@ -168,6 +180,8 @@ function openAbout() {
     </ul>
     <h4>Privacy</h4>
     <p>Chats aren't saved anywhere — they disappear when you leave. If you report someone, their recent messages are sent with the report so it can be reviewed. Your name, theme and daily results stay on this device.</p>
+    <h4>Get the app</h4>
+    <p>Cinema Club works like an app: on Android/Chrome tap <b>📲 Install app</b> in the footer; on iPhone tap <b>Share → Add to Home Screen</b>.</p>
     <h4>Movie data</h4>
     <a class="tmdb big" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="assets/tmdb-logo.svg" alt="TMDB" width="150" height="20"><span>This product uses the TMDB API but is not endorsed or certified by TMDB. Film titles, posters and credits come from The Movie Database.</span></a>
     <div class="row"><a class="btn" href="https://x.com/davudsdiary" target="_blank" rel="noopener">Send feedback</a><button class="btn primary" data-close>Got it</button></div>`, 'About Cinema Club');
@@ -175,7 +189,7 @@ function openAbout() {
 
 const VIEWS = {
   home: () => `
-    <header class="top">${logo()}${topRight(onlinePill(), themeBtn())}</header>
+    <header class="top">${logo()}${topRight(onlinePill(), soundBtn(), themeBtn())}</header>
     <main class="home">
       <div class="home-l">
       <div class="me-row">
@@ -269,6 +283,10 @@ const VIEWS = {
         <div class="cresults" data-fresults></div>
       </form>
       <section class="discussing" data-discussing>${discussingHtml()}</section>
+      <section class="popular" data-popular>
+        <div class="strip-head"><span>Popular this week</span><span>tap to pick</span></div>
+        <div class="pgrid">${popularHtml()}</div>
+      </section>
     </main>`,
 
   filmsearching: () => `
@@ -277,9 +295,9 @@ const VIEWS = {
       <div class="filmposter">${S.film.poster ? `<img src="${esc(S.film.poster)}" alt="">` : '<span>🎬</span>'}</div>
       <h2>Looking for someone who watched <em>${esc(S.film.title)}</em>…</h2>
       <p class="muted">You'll show up under “Now discussing” for everyone, so others can join you.</p>
-      <div class="cta">
-        <button class="btn" data-act="filmpick">Pick a different film</button>
-      </div>
+      <p class="elapsed" data-elapsed>0:00</p>
+      ${waitPlayHtml()}
+      <button class="link" data-act="filmpick">Pick a different film</button>
       <section class="discussing" data-discussing>${discussingHtml()}</section>
     </main>`,
 
@@ -288,9 +306,11 @@ const VIEWS = {
     <main class="center">
       <div class="projector" aria-hidden="true"><span></span><span></span></div>
       <h2>Finding your co-star…</h2>
-      <p class="muted" data-waitcount>${S.online} online · ${S.waiting} looking for a match</p>
-      <button class="btn" data-act="cancel">Cancel</button>
-      <p class="fine">Nobody around? <button class="link" data-act="create">Create a room</button> and send the link to a friend, or <button class="link" data-act="solo">play solo</button>.</p>
+      <p class="muted" data-waitcount>${waitCountText()}</p>
+      <p class="elapsed" data-elapsed>0:00</p>
+      ${waitPlayHtml()}
+      <button class="link" data-act="cancel">Cancel</button>
+      <p class="fine">Or <button class="link" data-act="create">create a room</button> and send the link to a friend.</p>
     </main>`,
 
   connecting: () => `
@@ -451,10 +471,11 @@ const VIEWS = {
       <div class="menu hidden" data-menu>
         <button data-act="leave">🏠 Leave &amp; go home</button>
         <button data-act="theme">${isDark() ? 'Light mode' : 'Dark mode'}</button>
+        <button data-act="sound">Sound: ${soundOn() ? 'on' : 'off'}</button>
         ${S.roomKind !== 'friends' ? '<button data-act="block" class="danger">Block &amp; leave</button>' : ''}
       </div>
     </header>
-    <div class="pins">${filmPinsHtml()}${S.chatCards.map((id, i) => `<div class="pin"><span class="qn">Q${S.filmPins.length + i + 1}</span>${esc(QUESTION_CARDS[id])}</div>`).join('')}</div>
+    <div class="pins">${filmPinsHtml()}${S.chatCards.map((id, i) => askPin(QUESTION_CARDS[id], S.filmPins.length + i + 1)).join('')}</div>
     <div class="banner hidden" data-banner></div>
     <main class="msgs" data-msgs>${S.messages.map(msgHtml).join('')}</main>
     <form class="composer" data-form="chat">
@@ -475,6 +496,8 @@ const VIEWS = {
 };
 
 const AFTER = {
+  searching() { startElapsed(); },
+  filmsearching() { startElapsed(); },
   filmpick() {
     M.detectMode();
     let tq;
@@ -498,6 +521,7 @@ const AFTER = {
       }, 280);
     });
     connectLobby().then(updateDiscussing);
+    if (!S.popular) M.trending().then((list) => { S.popular = list; }).catch(() => { S.popular = []; }).then(() => { const pg = $('[data-popular] .pgrid'); if (pg) pg.innerHTML = popularHtml(); });
   },
   home() {
     const dm = $('[data-datamode]');
@@ -521,10 +545,16 @@ const AFTER = {
     M.preload(imgs);
     const cd = $('[data-countdown]');
     const left = () => S.roundStart - performance.now();
+    let shown = '';
     const tick = () => {
       const l = left();
-      if (l > 0) { cd.textContent = Math.ceil(l / 500) > 2 ? '3' : Math.ceil(l / 500) === 2 ? '2' : '1'; return; }
+      if (l > 0) {
+        const n = Math.ceil(l / 500) > 2 ? '3' : Math.ceil(l / 500) === 2 ? '2' : '1';
+        if (n !== shown) { shown = n; cd.textContent = n; sfx('tick'); }
+        return;
+      }
       cd.remove();
+      sfx('go');
       $('main.round').classList.add('live');
       startCastReveal();
     };
@@ -578,6 +608,16 @@ const AFTER = {
     if (S.roomKind === 'solo') uiLater(2600, () => go('soloend'));
   },
 };
+
+function startElapsed() {
+  const tick = () => {
+    const el = $('[data-elapsed]'); if (!el) return;
+    const sec = Math.floor((Date.now() - S.searchSince) / 1000);
+    el.textContent = `Searching for ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    const wp = $('.waitplay'); if (wp) wp.classList.toggle('nudge', sec >= 10);
+  };
+  tick(); uiEvery(1000, tick);
+}
 
 // ---------- round UI ----------
 function startCastReveal() {
@@ -720,11 +760,40 @@ function statusLine() {
   if (S.roomKind === 'film' && S.film) return `also watched ${S.film.title}`;
   return 'online';
 }
+function askPin(q, n) {
+  const asked = S.asked && S.asked.has(q);
+  return `<button class="pin ask ${asked ? 'asked' : ''}" data-act="ask" data-q="${esc(q)}" ${S.partnerGone ? 'disabled' : ''}><span class="qn">Q${n} · ${asked ? 'asked ✓' : 'tap to ask'}</span>${esc(q)}</button>`;
+}
+function waitPlayHtml() {
+  return `<div class="waitplay">
+      <b>Nobody here yet? Don't just stare at the screen.</b>
+      <span>Play the Projectionist while you wait. We'll pull you into a real match the moment someone joins.</span>
+      <button class="btn gold" data-act="waitplay">🍿 Play while I wait</button>
+    </div>`;
+}
+function popularHtml() {
+  if (!S.popular) return '<p class="muted small">Loading…</p>';
+  if (!S.popular.length) return '<p class="muted small">Couldn\'t load popular films — search instead.</p>';
+  const waiting = new Map(discussingList().map((e) => [String(e.film.id), e.n]));
+  return S.popular.map((m, i) => `<button class="pop" data-act="pickpop" data-i="${i}">
+      ${m.poster ? `<img src="${esc(m.poster)}" alt="" loading="lazy">` : '<span class="noimg">🎬</span>'}
+      ${waiting.has(String(m.id)) ? `<span class="live">● ${waiting.get(String(m.id))} waiting</span>` : ''}
+      <span class="pt">${esc(m.title)}</span>
+    </button>`).join('');
+}
+function updateQueueBar() {
+  let bar = $('#queuebar');
+  const show = S.searching && S.roomKind === 'solo';
+  if (!show) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'queuebar'; document.body.appendChild(bar); }
+  const what = S.searchKind === 'film' && S.film ? `someone who watched ${esc(S.film.title)}` : 'a co-star';
+  bar.innerHTML = `<span class="dot"></span><span>Still looking for ${what}…</span><button data-qb="stop">Stop</button>`;
+}
 function filmPinsHtml() {
   if (S.roomKind !== 'film' || !S.film) return '';
   const f = S.film;
   return `<div class="pin film">${f.poster ? `<img src="${esc(f.poster)}" alt="">` : ''}<div><span class="qn">Now discussing</span><b>${esc(f.title)}</b>${f.year ? ` <span class="yr">${f.year}</span>` : ''}<small>Spoilers allowed</small></div></div>`
-    + S.filmPins.map((q, i) => `<div class="pin"><span class="qn">Q${i + 1}</span>${esc(q)}</div>`).join('');
+    + S.filmPins.map((q, i) => askPin(q, i + 1)).join('');
 }
 // films other people are waiting to talk about (from lobby presence)
 function discussingList() {
@@ -750,6 +819,7 @@ function updateDiscussing() {
   if (!el) return;
   el.innerHTML = discussingHtml();
   if ('hideempty' in el.dataset) el.classList.toggle('hidden', !discussingList().length);
+  const pg = $('[data-popular] .pgrid'); if (pg && S.popular) pg.innerHTML = popularHtml();
 }
 function splitName() {
   const adj = ADJ.find((a) => profile.name.startsWith(a + ' ')) || ADJ[0];
@@ -797,6 +867,7 @@ async function connectLobby() {
   ch.onSync((peers) => {
     S.online = peers.length;
     S.waiting = peers.filter((p) => p.mode === 'waiting').length;
+    S.waitingOthers = peers.filter((p) => p.mode === 'waiting' && p.key !== myId && (p.kind || 'game') === S.searchKind).length;
     updateOnline();
     updateDiscussing();
     if (S.searching && !S.pairing) tryPair(peers);
@@ -864,7 +935,7 @@ async function startFilmSearch(film) {
 function resetMatch() {
   hostStop();
   Object.assign(S, { partner: null, partnerGone: false, isHost: false, bot: null, game: null, scores: {}, round: null, result: null,
-    chain: null, matchEnd: null, cards: null, picks: [], chatCards: [], filmPins: [], messages: [], rematch: null, typingUntil: 0 });
+    chain: null, matchEnd: null, cards: null, picks: [], chatCards: [], filmPins: [], messages: [], rematch: null, typingUntil: 0, asked: new Set() });
 }
 async function leaveRoom(silent) {
   clearTimeout(S.pairTimer);
@@ -874,6 +945,7 @@ async function leaveRoom(silent) {
   if (ch) { if (!silent) { try { ch.send({ t: 'bye', from: myId }); } catch (e) { /* closed */ } } await ch.leave(); }
 }
 async function joinRoom(code, kind, expectKey) {
+  if (S.roomKind === 'solo' && S.searching) toast('🎟️ Match found — switching you over!');
   await leaveRoom(true);
   resetMatch();
   S.roomCode = code; S.roomKind = kind; S.expect = expectKey || null;
@@ -910,6 +982,7 @@ function onRoomPeers(ch, peers) {
     S.partner = { key: p.key, name: p.name, avatar: p.avatar, dev: p.dev };
     S.isHost = myId < p.key;
     S.scores = { [myId]: 0, [p.key]: 0 };
+    sfx('match'); buzz([80, 50, 80]);
     clearTimeout(S.pairTimer); S.pairing = false;
     if (S.roomKind === 'friends') history.replaceState(null, '', location.pathname + (NET_MODE === 'local' ? '?net=local' : ''));
     if (S.roomKind === 'film') {
@@ -939,7 +1012,7 @@ function partnerLeft() {
 
 function startSolo(game) {
   leaveRoom(true);
-  stopSearch();
+  if (!S.searching) stopSearch(); // when waiting in a queue we stay in it and get pulled out on a match
   resetMatch();
   S.roomKind = 'solo'; S.roomCode = null; S.soloGame = game || null;
   const ch = new LoopChannel(myId, { name: 'The Projectionist', avatar: '🤖' });
@@ -973,26 +1046,34 @@ function handle(m) {
     case 'lock':
       if (!S.round || m.n !== S.round.n) return;
       S.locks[m.who] = m.ok;
-      if (m.who === myId) S.myOk = m.ok;
+      if (m.who === myId) {
+        S.myOk = m.ok;
+        if (m.ok === true) { sfx('correct'); buzz(25); } else if (m.ok === false) { sfx('wrong'); buzz([50, 40, 50]); } else sfx('pop');
+      }
       updateRound();
       break;
     case 'result':
       if (!S.round || m.n !== S.round.n) return;
       S.result = m; S.scores = m.scores;
+      if (m.winner === myId) sfx('point');
       showResult();
       break;
     case 'match_end':
       S.matchEnd = m; S.scores = m.scores;
+      if (m.winner === myId) { sfx('win'); buzz([60, 40, 60, 40, 140]); } else if (m.winner) sfx('lose'); else sfx('point');
       go('matchend');
       if (S.isHost && S.roomKind !== 'solo') hLater(2800, hostOfferCards);
       break;
     case 'chain':
+      if (!m.state.over && m.state.turn === myId && (!S.chain || S.chain.turn !== myId || S.chain.seq !== m.state.seq)) { sfx('turn'); buzz(40); }
+      if (m.state.chain.length > 1 && !m.state.over && m.state.chain[m.state.chain.length - 1].by === myId && (!S.chain || S.chain.chain.length < m.state.chain.length)) sfx('correct');
       S.chain = m.state; S.chainRecvAt = performance.now(); S.scores = m.scores || S.scores;
       if (S.screen !== 'chain') go('chain'); else { updateChain(); updateScores(); }
       if (m.state.chain.length > 1 && !m.state.over) { const fb = $('[data-cfb]'); if (fb) { const l = m.state.chain[m.state.chain.length - 1]; fb.innerHTML = `<span class="ok">✓ ${esc(l.movie.title)} via ${esc(l.via.name)}</span>`; } }
       break;
     case 'chain_reject':
       if (m.who === myId) {
+        sfx('wrong');
         const fb = $('[data-cfb]');
         if (fb) fb.innerHTML = `<span class="no">✗ ${esc(m.title || '')}${m.title ? ': ' : ''}${esc(m.reason)}</span>`;
         const q = $('[data-cq]'); if (q) { q.disabled = false; q.select(); }
@@ -1011,6 +1092,7 @@ function handle(m) {
     case 'chat':
       if (m.from === myId) return;
       S.typingUntil = 0;
+      sfx('pop');
       pushMsg({ from: m.from, text: cleanText(String(m.text || '')), raw: String(m.text || '').slice(0, 300) });
       updateTyping();
       break;
@@ -1019,7 +1101,7 @@ function handle(m) {
       break;
     case 'rematch_req':
       if (S.rematch === 'out') { acceptRematch(); break; } // both asked at once
-      S.rematch = 'in'; updateBanner();
+      S.rematch = 'in'; updateBanner(); sfx('turn');
       break;
     case 'rematch_no':
       S.rematch = null; updateBanner(); toast(`${S.partner.name} wants to keep chatting`);
@@ -1138,6 +1220,7 @@ function hostEndDaily() {
   if (S.h && S.h.daily) saveDailyProgress(S.h.daily, true);
   const room = S.room; S.room = null; if (room) room.leave();
   S.roomKind = null; S.partner = null;
+  sfx('win');
   go('dailyintro');
 }
 async function startDaily() {
@@ -1334,6 +1417,33 @@ const ACT = {
   orderreset() { S.orderSel = []; renderOrder(); },
   orderlock() { if (S.orderSel.length === 4) answer(S.orderSel.slice()); },
   report() { openReport(); },
+  async install(el) {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch (e) { /* dismissed */ }
+    installPrompt = null; el.classList.add('hidden');
+  },
+  waitplay() { startSolo(); },
+  pickpop(el) {
+    const m = S.popular && S.popular[+el.dataset.i];
+    if (m) startFilmSearch({ id: m.id, title: m.title, year: m.year, poster: m.poster });
+  },
+  ask(el) {
+    if (S.partnerGone || !S.room) return;
+    if (Date.now() - lastSend < 400) return;
+    lastSend = Date.now();
+    const text = cleanText(el.dataset.q);
+    pushMsg({ from: myId, text });
+    send({ t: 'chat', text, ts: Date.now() });
+    S.asked.add(el.dataset.q);
+    el.classList.add('asked');
+    const qn = el.querySelector('.qn'); if (qn) qn.textContent = qn.textContent.replace('tap to ask', 'asked ✓');
+  },
+  sound() {
+    setSound(!soundOn());
+    $$('[data-act="sound"]').forEach((b) => { b.innerHTML = b.closest('[data-menu]') ? `Sound: ${soundOn() ? 'on' : 'off'}` : soundIcon(); b.setAttribute('aria-label', soundOn() ? 'Mute sounds' : 'Turn sounds on'); });
+    toast(soundOn() ? 'Sound on 🔊' : 'Sound off');
+  },
   about() { openAbout(); },
   daily() { go('dailyintro'); },
   dailystart() { startDaily(); },
@@ -1380,6 +1490,12 @@ const ACT = {
     if (!el.classList.contains('armed')) {
       el.classList.add('armed'); el.textContent = 'Leave?';
       setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 3000);
+      return;
+    }
+    if (S.roomKind === 'solo' && S.searching) { // playing while waiting: go back to the queue
+      leaveRoom(true); resetMatch(); S.roomKind = null;
+      go(S.searchKind === 'film' ? 'filmsearching' : 'searching');
+      toast('Back in the queue');
       return;
     }
     const solo = S.roomKind === 'solo' || S.roomKind === 'daily';
@@ -1490,6 +1606,10 @@ app.addEventListener('change', (e) => {
   const f = e.target.closest('[data-form="name"]');
   if (f) $('[data-myname]').textContent = `${f.adj.value} ${f.noun.value}`;
 });
+document.addEventListener('pointerdown', unlock, { passive: true });
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-qb="stop"]')) { stopSearch(); updateQueueBar(); toast('Stopped searching — enjoy the game'); }
+});
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && $('#modal')) closeReport();
   if (S.screen === 'round' && S.round && !['year', 'order'].includes(S.round.kind) && /^[1-4]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
@@ -1498,6 +1618,12 @@ document.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('pagehide', () => { if (S.room) try { S.room.send({ t: 'bye', from: myId }); } catch (e) { /* closing */ } });
+
+// ---------- installable app ----------
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; const b = $('[data-act="install"]'); if (b) b.classList.remove('hidden'); });
+window.addEventListener('appinstalled', () => { installPrompt = null; toast('Cinema Club is on your home screen 🎬'); });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
 
 // ---------- boot ----------
 (function boot() {
