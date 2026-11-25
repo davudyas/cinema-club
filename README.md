@@ -45,6 +45,7 @@ Tap your name on the home page to choose your emoji and both words yourself, or 
 | 🎬 Director's Cut | Who directed it? Four names, one is right |
 | 🪪 Who's Who | Name the film from its character names |
 | 🕰️ Timeline | Put four films in release order — one shot |
+| 🧩 Odd One Out | Three of four films share an actor — tap the one that doesn't |
 
 Matches are first to 3 rounds (max 7). Actor Chain is a single sudden-death duel.
 

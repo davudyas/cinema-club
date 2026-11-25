@@ -198,7 +198,7 @@ function pChip(p, score) {
 
 // ---------- daily challenge ----------
 const DAILY_EPOCH = Date.UTC(2026, 10, 25); // daily #1
-const DAILY_GAMES = ['emoji', 'plot', 'whoswho', 'director', 'timeline', 'cast', 'higherlower', 'blur'];
+const DAILY_GAMES = ['emoji', 'plot', 'whoswho', 'director', 'timeline', 'cast', 'higherlower', 'blur', 'oddone'];
 const dayKey = (d = new Date()) => d.toISOString().slice(0, 10);
 function loadDaily() {
   try { const v = localStorage.getItem('cinemaclub:daily'); const st = v ? JSON.parse(v) : null; if (st && st.results) return st; } catch (e) { /* private mode */ }
@@ -304,8 +304,8 @@ ${nameBlockHtml()}
       <h1>Play first.<br><span class="hl">Then talk movies.</span></h1>
       <p class="lede">Meet a film fan, play a two-minute movie game, then talk films. Just finished something? Find someone who watched it too.</p>
       <div class="cta">
-        <button class="btn primary big" data-act="match">🎟️ Random match <small>game, then chat</small></button>
-        <button class="btn ink big" data-act="filmpick">💬 Talk about a film <small>same film, spoilers OK</small></button>
+        <button class="btn primary big" data-act="match">🎟️ Random match</button>
+        <button class="btn ink big" data-act="filmpick">💬 Talk about a film</button>
         <div class="row three">
           <button class="btn small-btn" data-act="solo">🍿 Solo</button>
           <button class="btn small-btn" data-act="create">Create room</button>
@@ -476,6 +476,12 @@ ${nameBlockHtml()}
           <span class="pt">${esc(f.title)}${d.showYear && d.years[i] ? ` <em>(${d.years[i]})</em>` : ''}</span>
           <span class="pv" data-pv="${i}"></span>
         </button>`).join('<span class="or">or</span>')}</div>`;
+    } else if (r.kind === 'quad') {
+      media = `<div class="quad">${d.films.map((f, i) => `
+        <button class="pcard" data-act="answer" data-v="${i}">
+          ${f.poster ? `<img src="${esc(f.poster)}" alt="">` : '<div class="noimg">🎬</div>'}
+          <span class="pt">${esc(f.title)}${f.year ? ` <em>(${f.year})</em>` : ''}</span>
+        </button>`).join('')}</div>`;
     } else if (r.kind === 'order') {
       media = `<div class="order">${d.films.map((f, i) => `
         <button class="ocard" data-act="orderpick" data-i="${i}">
@@ -786,6 +792,7 @@ function showResult() {
       const y = $(`[data-oy="${i}"]`); if (y) y.textContent = res.reveal.years[i];
       if (Array.isArray(S.myAnswer)) c.classList.add(S.myAnswer[pos] === i ? 'good' : 'bad'); });
   }
+  if (r.kind === 'quad') $$('.pcard').forEach((b) => { b.disabled = true; if (+b.dataset.v === res.answer) b.classList.add('correct'); });
   if (r.kind === 'pair') {
     $$('.pcard').forEach((b) => { b.disabled = true; if (+b.dataset.v === res.answer) b.classList.add('correct'); });
     res.reveal.values.forEach((v, i) => { const el = $(`[data-pv="${i}"]`); if (el) el.textContent = v; });

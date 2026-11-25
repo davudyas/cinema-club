@@ -679,3 +679,10 @@ html[data-bg="10"] #bgfx { background-color: #E0412F;
 #wallpick::-webkit-scrollbar { display: none; }
 #wallpick button, #wallpick span { flex: none; white-space: nowrap; }
 @media (max-width: 959px) { #wallpick { bottom: 10px; top: auto; } }
+
+/* Odd One Out: four poster cards */
+.quad { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quad .pcard { padding: 6px; gap: 6px; }
+.quad .pcard img, .quad .pcard .noimg { aspect-ratio: 3 / 4; object-position: center 25%; }
+.quad .pcard .pt { font-size: 13px; }
+@media (min-width: 600px) { .quad .pcard img { aspect-ratio: 2 / 3; } }

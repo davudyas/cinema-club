@@ -14,6 +14,7 @@ export const GAMES = {
   director: { name: "Director's Cut", icon: '🎬', desc: 'Who directed it? Four names, one is right.', tmdb: true },
   whoswho: { name: "Who's Who", icon: '🪪', desc: 'Name the film from its characters.', tmdb: true },
   timeline: { name: 'Timeline', icon: '🕰️', desc: 'Put four films in release order. One shot.', tmdb: true },
+  oddone: { name: 'Odd One Out', icon: '🧩', desc: 'Three films share an actor. Spot the one that doesn’t.', images: false },
 };
 export const GAME_IDS = Object.keys(GAMES);
 
@@ -187,6 +188,33 @@ export async function makeRound(game, ctx) {
       answer: order,
       reveal: { years: picked.map((m) => m.year), line: order.map((i) => `${picked[i].title} (${picked[i].year})`).join(' → ') } };
   }
+  if (game === 'oddone') {
+    for (let tries = 0; tries < 8; tries++) {
+      const f = takeFilm(ctx, (m) => m.poster);
+      if (!f) break;
+      let d; try { d = await getDetails(f.id); } catch (e) { continue; }
+      for (const actor of d.cast.slice(0, 3)) {
+        let theirs = [];
+        try { theirs = (await personMovies(actor.id)).filter((m) => m.poster && m.id !== f.id); } catch (e) { continue; }
+        if (theirs.length < 2) continue;
+        const two = shuffle(theirs.slice(0, 10), RNG).slice(0, 2);
+        const theirIds = new Set([f.id, ...theirs.map((m) => m.id)]);
+        // the odd one: a film from the pool this actor is not in
+        let odd = null;
+        for (const m of shuffle(ctx.pool.filter((x) => x.poster && !theirIds.has(x.id)), RNG).slice(0, 5)) {
+          try { const dd = await getDetails(m.id); if (!dd.cast.some((c) => c.id === actor.id)) { odd = m; break; } } catch (e) { /* try next */ }
+        }
+        if (!odd) continue;
+        ctx.used.add(odd.id);
+        const films = shuffle([f, ...two, odd], RNG);
+        return { kind: 'quad', duration: 14000,
+          data: { prompt: `Which film does NOT star ${actor.name}?`, films: films.map((m) => ({ title: m.title, year: m.year, poster: m.poster })) },
+          answer: films.indexOf(odd),
+          reveal: { title: `${odd.title} is the odd one out — no ${actor.name}`, year: null } };
+      }
+    }
+    throw new Error('Could not build an Odd One Out round');
+  }
   if (game === 'year') {
     const f = takeFilm(ctx, (m) => m.year);
     return { kind: 'year', duration: 15000, data: { title: f.title, poster: f.poster, prompt: 'What year did it come out?' },
@@ -254,7 +282,7 @@ export class Bot {
       }
       const slow = data.media && ['blur', 'zoom', 'cast', 'chars', 'plot'].includes(data.media.type) ? 3500 : 0;
       const t = 2200 + slow + Math.random() * 7000;
-      const count = kind === 'pair' ? 2 : data.options.length;
+      const count = data.films ? data.films.length : data.options.length;
       const correct = Math.random() < this.skill;
       let v = sec.answer;
       if (!correct) { do { v = Math.floor(Math.random() * count); } while (v === sec.answer && count > 1); }
