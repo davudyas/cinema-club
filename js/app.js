@@ -65,6 +65,7 @@ function go(screen) {
   (AFTER[screen] || (() => {}))();
   updateQueueBar();
   syncHistory(screen);
+  updatePosterWall(screen);
   window.scrollTo(0, 0);
 }
 
@@ -91,6 +92,31 @@ window.addEventListener('popstate', () => {
   }
   doLeave(true);
 });
+
+// Faded poster wall in the background (hidden during games so it can't give answers away)
+const WALL_OFF = ['spin', 'round', 'chain', 'cards', 'chat', 'dailyload'];
+function updatePosterWall(screen) {
+  const w = $('#posterwall');
+  if (w) w.classList.toggle('off', WALL_OFF.includes(screen));
+}
+async function buildPosterWall() {
+  try {
+    if (navigator.connection && navigator.connection.saveData) return;
+    if ((await M.detectMode()) !== 'tmdb' || $('#posterwall')) return;
+    const films = await M.getPool();
+    const urls = [...new Set(films.map((f) => f.poster).filter(Boolean))].slice(0, 36).map((u) => u.replace('/w342/', '/w154/'));
+    if (urls.length < 12) return;
+    while (urls.length < 36) urls.push(...urls.slice(0, 36 - urls.length));
+    const wall = document.createElement('div');
+    wall.id = 'posterwall';
+    wall.setAttribute('aria-hidden', 'true');
+    wall.innerHTML = `<div class="pw-grid">${urls.map((u) => `<img src="${esc(u)}" alt="" decoding="async">`).join('')}</div>`;
+    wall.querySelectorAll('img').forEach((im) => { const show = () => im.classList.add('in'); if (im.complete && im.naturalWidth) show(); else im.addEventListener('load', show, { once: true }); });
+    document.body.prepend(wall);
+    updatePosterWall(S.screen);
+    requestAnimationFrame(() => wall.classList.add('on'));
+  } catch (e) { /* the wall is decoration only */ }
+}
 
 // Tab title alerts while the tab is in the background
 const BASE_TITLE = document.title;
@@ -122,7 +148,7 @@ function onlineText() {
   if (S.lobbyOk === false && NET_MODE !== 'local') return `<b class="off"></b>offline`;
   if (S.lobbyOk === null && NET_MODE !== 'local') return `<b class="wait"></b>connecting…`;
   const o = othersOnline();
-  return o ? `<b></b>${o} other${o === 1 ? '' : 's'} online` : `<b class="idle"></b>just you here`;
+  return o ? `<b></b>${o} other${o === 1 ? '' : 's'} online` : `<b class="idle"></b>only you`;
 }
 function waitCountText() {
   const o = othersOnline(), w = S.waitingOthers || 0;
@@ -1695,6 +1721,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
   const room = new URLSearchParams(location.search).get('room');
   M.detectMode();
   connectLobby();
+  setTimeout(buildPosterWall, 400);
   if (room && /^[A-Z0-9]{4}$/i.test(room)) { S.inviteCode = room.toUpperCase(); go('invite'); }
   else go('home');
   window.__coldopen = { S, myId }; // handy for debugging

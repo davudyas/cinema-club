@@ -52,12 +52,14 @@
 :root[data-theme=dark] .media img, :root[data-theme=dark] .pcard img { filter: brightness(.95); }
 html { transition: background-color .3s; }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); -webkit-font-smoothing: antialiased; }
-body {
-  min-height: 100dvh;
+html { background: var(--paper); }
+html, body { margin: 0; color: var(--ink); font-family: var(--body); -webkit-font-smoothing: antialiased; }
+html {
   background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0);
   background-size: 18px 18px;
+  background-attachment: fixed;
 }
+body { min-height: 100dvh; background: transparent; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; }
 input { font: inherit; color: inherit; }
@@ -508,3 +510,20 @@ body:has(#queuebar) #toast { bottom: 70px; }
 .invite-me .me-row { margin: 0; justify-content: center; }
 .invite-me .name-editor { margin: 4px 0 0; width: 100%; text-align: left; }
 .invite .btn.big { width: min(100%, 360px); }
+
+/* ---------- faded poster wall ---------- */
+#posterwall { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity 1.4s ease; }
+#posterwall.on { opacity: 1; }
+#posterwall.on.off { opacity: 0; transition-duration: .4s; }
+.pw-grid { position: absolute; top: 50%; left: 50%; width: max(150vmax, 1400px); display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 16px;
+  transform: translate(-50%, -50%) rotate(-9deg); animation: pwdrift 140s linear infinite alternate; }
+.pw-grid img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; opacity: 0; transition: opacity 1s ease; filter: grayscale(.45) sepia(.2) contrast(.95); }
+.pw-grid img.in { opacity: .2; }
+/* fade the wall out where the content sits; more of it shows at the edges on big screens */
+#posterwall::after { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 62% 75% at 50% 45%, color-mix(in srgb, var(--paper) 88%, transparent) 0%, color-mix(in srgb, var(--paper) 62%, transparent) 55%, color-mix(in srgb, var(--paper) 30%, transparent) 100%); }
+:root[data-theme=dark] .pw-grid img.in { opacity: .26; }
+:root[data-theme=dark] .pw-grid img { filter: grayscale(.4) brightness(.8); }
+@keyframes pwdrift { from { transform: translate(-50%, -50%) rotate(-9deg); } to { transform: translate(-46%, -53%) rotate(-9deg); } }
+@media (prefers-reduced-motion: reduce) { .pw-grid { animation: none; } }
+@media (max-width: 600px) { .pw-grid { width: max(220vmax, 1400px); } .pw-grid img.in { opacity: .16; } }
