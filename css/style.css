@@ -517,13 +517,21 @@ body:has(#queuebar) #toast { bottom: 70px; }
 #posterwall.on.off { opacity: 0; transition-duration: .4s; }
 .pw-grid { position: absolute; top: 50%; left: 50%; width: max(150vmax, 1400px); display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 16px;
   transform: translate(-50%, -50%) rotate(-9deg); animation: pwdrift 140s linear infinite alternate; }
-.pw-grid img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; opacity: 0; transition: opacity 1s ease; filter: grayscale(.45) sepia(.2) contrast(.95); }
-.pw-grid img.in { opacity: .2; }
+.pw-grid img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; opacity: 0; transition: opacity 1s ease; filter: grayscale(.35) sepia(.15) contrast(.95); }
+.pw-grid img.in { opacity: .42; }
 /* fade the wall out where the content sits; more of it shows at the edges on big screens */
 #posterwall::after { content: ''; position: absolute; inset: 0;
-  background: radial-gradient(ellipse 62% 75% at 50% 45%, color-mix(in srgb, var(--paper) 88%, transparent) 0%, color-mix(in srgb, var(--paper) 62%, transparent) 55%, color-mix(in srgb, var(--paper) 30%, transparent) 100%); }
-:root[data-theme=dark] .pw-grid img.in { opacity: .26; }
-:root[data-theme=dark] .pw-grid img { filter: grayscale(.4) brightness(.8); }
+  background: radial-gradient(ellipse 70% 70% at 50% 42%, color-mix(in srgb, var(--paper) 74%, transparent) 0%, color-mix(in srgb, var(--paper) 55%, transparent) 60%, color-mix(in srgb, var(--paper) 35%, transparent) 100%); }
+:root[data-theme=dark] .pw-grid img.in { opacity: .45; }
+:root[data-theme=dark] .pw-grid img { filter: grayscale(.35) brightness(.75); }
 @keyframes pwdrift { from { transform: translate(-50%, -50%) rotate(-9deg); } to { transform: translate(-46%, -53%) rotate(-9deg); } }
 @media (prefers-reduced-motion: reduce) { .pw-grid { animation: none; } }
-@media (max-width: 600px) { .pw-grid { width: max(220vmax, 1400px); } .pw-grid img.in { opacity: .16; } }
+@media (max-width: 600px) { .pw-grid { width: max(220vmax, 1400px); } }
+
+/* compact header on phones so the online label fits next to the sound + theme buttons */
+@media (max-width: 420px) {
+  .top .logo { font-size: 19px; gap: 7px; }
+  .top .online { font: 700 11.5px var(--body); padding: 5px 9px; gap: 6px; }
+  .top-r { gap: 6px; }
+  .top-r .iconbtn { height: 33px; min-width: 33px; padding: 0 7px; }
+}
