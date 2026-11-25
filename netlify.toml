@@ -7,3 +7,27 @@
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Serve third-party files through our own domain so visitors' browsers never contact Google or a CDN directly.
+[[redirects]]
+  from = "/fonts/*"
+  to = "https://fonts.gstatic.com/s/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/vendor/supabase.js"
+  to = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

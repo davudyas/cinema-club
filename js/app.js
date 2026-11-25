@@ -64,8 +64,43 @@ function go(screen) {
   app.dataset.screen = screen;
   (AFTER[screen] || (() => {}))();
   updateQueueBar();
+  syncHistory(screen);
   window.scrollTo(0, 0);
 }
+
+// The phone/browser back button: inside the app it goes back home (or asks twice during a game)
+// instead of leaving the site.
+function syncHistory(screen) {
+  try {
+    const inApp = history.state && history.state.cc;
+    if (screen === 'invite') return;
+    if (screen === 'home') { if (inApp || /room=/.test(location.search)) history.replaceState(null, '', location.pathname + (NET_MODE === 'local' ? '?net=local' : '')); }
+    else if (!inApp) history.pushState({ cc: 1 }, '', location.pathname + (NET_MODE === 'local' ? '?net=local' : ''));
+  } catch (e) { /* history unavailable */ }
+}
+const LIVE_SCREENS = ['spin', 'round', 'chain', 'matchend', 'cards', 'chat', 'connecting', 'dailyload'];
+let backArmedAt = 0;
+window.addEventListener('popstate', () => {
+  if (S.screen === 'home' || S.screen === 'invite') return;
+  if (LIVE_SCREENS.includes(S.screen) && S.room) {
+    if (Date.now() - backArmedAt < 3000) { backArmedAt = 0; doLeave(); return; }
+    backArmedAt = Date.now();
+    try { history.pushState({ cc: 1 }, '', location.href); } catch (e) { /* ignore */ }
+    toast('Press back again to leave');
+    return;
+  }
+  doLeave(true);
+});
+
+// Tab title alerts while the tab is in the background
+const BASE_TITLE = document.title;
+let unseen = 0;
+function alertTitle(text) {
+  if (!document.hidden) return;
+  unseen++;
+  document.title = `${unseen > 1 ? `(${unseen}) ` : ''}${text} · Cinema Club`;
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = BASE_TITLE; } });
 
 const logo = () => `<div class="logo"><span class="clap" aria-hidden="true"><i></i></span>Cinema&nbsp;Club</div>`;
 const isDark = () => document.documentElement.dataset.theme === 'dark';
@@ -179,7 +214,7 @@ function openAbout() {
       <li><b>Report &amp; block.</b> Use 🚩 if someone crosses a line. Blocked people won't be matched with you again.</li>
     </ul>
     <h4>Privacy</h4>
-    <p>Chats aren't saved anywhere — they disappear when you leave. If you report someone, their recent messages are sent with the report so it can be reviewed. Your name, theme and daily results stay on this device.</p>
+    <p>Chats aren't saved anywhere — they disappear when you leave. If you report someone, their recent messages are sent with the report so it can be reviewed. Your name, theme and daily results stay on this device. Fonts and app code are served from this site; film posters load from TMDB's image servers.</p>
     <h4>Get the app</h4>
     <p>Cinema Club works like an app: on Android/Chrome tap <b>📲 Install app</b> in the footer; on iPhone tap <b>Share → Add to Home Screen</b>.</p>
     <h4>Movie data</h4>
@@ -187,11 +222,8 @@ function openAbout() {
     <div class="row"><a class="btn" href="https://x.com/davudsdiary" target="_blank" rel="noopener">Send feedback</a><button class="btn primary" data-close>Got it</button></div>`, 'About Cinema Club');
 }
 
-const VIEWS = {
-  home: () => `
-    <header class="top">${logo()}${topRight(onlinePill(), soundBtn(), themeBtn())}</header>
-    <main class="home">
-      <div class="home-l">
+function nameBlockHtml() {
+  return `
       <div class="me-row">
         <button class="me-chip" data-act="editname" title="Choose your name" aria-expanded="false">
           <span class="av" data-myav>${esc(profile.avatar)}</span><span data-myname>${esc(profile.name)}</span><span class="reroll" aria-hidden="true">✎</span>
@@ -207,6 +239,15 @@ const VIEWS = {
         </div>
         <div class="row"><button type="button" class="btn" data-act="editname">Cancel</button><button type="submit" class="btn primary">Save name</button></div>
       </form>
+`;
+}
+
+const VIEWS = {
+  home: () => `
+    <header class="top">${logo()}${topRight(onlinePill(), soundBtn(), themeBtn())}</header>
+    <main class="home">
+      <div class="home-l">
+${nameBlockHtml()}
       <h1>Play first.<br><span class="hl">Then talk movies.</span></h1>
       <p class="lede">Meet a film fan, play a two-minute movie game, then talk films. Just finished something? Find someone who watched it too.</p>
       <div class="cta">
@@ -269,6 +310,18 @@ const VIEWS = {
     </main>`;
   },
 
+  invite: () => `
+    <header class="top">${logo()}${topRight(soundBtn(), themeBtn())}</header>
+    <main class="center invite">
+      <p class="eyebrow">You're invited 🎟️</p>
+      <h2>A friend wants to play a movie game with you</h2>
+      <p class="muted">Cinema Club: play a quick movie mini-game together, then chat about films. No sign-up, nothing to install.</p>
+      <div class="ticket-code small">${[...S.inviteCode].map((c) => `<span>${esc(c)}</span>`).join('')}</div>
+      <div class="invite-me"><p class="muted small">You'll show up as</p>${nameBlockHtml()}</div>
+      <button class="btn primary big" data-act="joininvite">Join the room →</button>
+      <button class="link" data-act="home">Look around first</button>
+    </main>`,
+
   dailyload: () => `
     <header class="top">${logo()}${topRight(leaveBtn())}</header>
     <main class="center"><div class="projector" aria-hidden="true"><span></span><span></span></div><h2>Rolling today’s reel…</h2></main>`,
@@ -322,9 +375,9 @@ const VIEWS = {
     return `
     <header class="top">${logo()}${topRight(onlinePill(), leaveBtn())}</header>
     <main class="center">
-      <p class="eyebrow">Your private room</p>
+      <p class="eyebrow">${S.joinedViaInvite ? 'Joining your friend’s room' : 'Your private room'}</p>
       <div class="ticket-code">${[...S.roomCode].map((c) => `<span>${c}</span>`).join('')}</div>
-      <p class="muted">Send this code or link to a friend. The game starts as soon as they join.</p>
+      <p class="muted">${S.joinedViaInvite ? 'Connecting… the game starts as soon as you’re both in.' : 'Send this code or link to a friend. The game starts as soon as they join.'}</p>
       <div class="row">
         <button class="btn primary" data-act="copylink" data-link="${esc(link)}">Copy link</button>
         ${navigator.share ? `<button class="btn" data-act="sharelink" data-link="${esc(link)}">Share…</button>` : ''}
@@ -982,7 +1035,7 @@ function onRoomPeers(ch, peers) {
     S.partner = { key: p.key, name: p.name, avatar: p.avatar, dev: p.dev };
     S.isHost = myId < p.key;
     S.scores = { [myId]: 0, [p.key]: 0 };
-    sfx('match'); buzz([80, 50, 80]);
+    sfx('match'); buzz([80, 50, 80]); alertTitle('🎟️ Match found!');
     clearTimeout(S.pairTimer); S.pairing = false;
     if (S.roomKind === 'friends') history.replaceState(null, '', location.pathname + (NET_MODE === 'local' ? '?net=local' : ''));
     if (S.roomKind === 'film') {
@@ -1065,7 +1118,7 @@ function handle(m) {
       if (S.isHost && S.roomKind !== 'solo') hLater(2800, hostOfferCards);
       break;
     case 'chain':
-      if (!m.state.over && m.state.turn === myId && (!S.chain || S.chain.turn !== myId || S.chain.seq !== m.state.seq)) { sfx('turn'); buzz(40); }
+      if (!m.state.over && m.state.turn === myId && (!S.chain || S.chain.turn !== myId || S.chain.seq !== m.state.seq)) { sfx('turn'); buzz(40); alertTitle('🔗 Your turn'); }
       if (m.state.chain.length > 1 && !m.state.over && m.state.chain[m.state.chain.length - 1].by === myId && (!S.chain || S.chain.chain.length < m.state.chain.length)) sfx('correct');
       S.chain = m.state; S.chainRecvAt = performance.now(); S.scores = m.scores || S.scores;
       if (S.screen !== 'chain') go('chain'); else { updateChain(); updateScores(); }
@@ -1092,7 +1145,7 @@ function handle(m) {
     case 'chat':
       if (m.from === myId) return;
       S.typingUntil = 0;
-      sfx('pop');
+      sfx('pop'); alertTitle('💬 New message');
       pushMsg({ from: m.from, text: cleanText(String(m.text || '')), raw: String(m.text || '').slice(0, 300) });
       updateTyping();
       break;
@@ -1101,7 +1154,7 @@ function handle(m) {
       break;
     case 'rematch_req':
       if (S.rematch === 'out') { acceptRematch(); break; } // both asked at once
-      S.rematch = 'in'; updateBanner(); sfx('turn');
+      S.rematch = 'in'; updateBanner(); sfx('turn'); alertTitle('🎲 Game request');
       break;
     case 'rematch_no':
       S.rematch = null; updateBanner(); toast(`${S.partner.name} wants to keep chatting`);
@@ -1149,7 +1202,10 @@ async function hostNextRound() {
     if (!it) return hostEndDaily();
     H.game = it.game; r = it.r;
   } else {
-    try { r = await makeRound(H.game, H.ctx); } catch (e) { console.error(e); toast('Could not load the next round'); return hostEndMatch(); }
+    try { r = await makeRound(H.game, H.ctx); } catch (e) {
+      H.ctx.used.clear(); // ran out of films — reuse the pool rather than ending the match
+      try { r = await makeRound(H.game, H.ctx); } catch (e2) { console.error(e2); toast('Could not load the next round'); return hostEndMatch(); }
+    }
   }
   if (S.h !== H) return;
   H.round = r; H.answers = {}; H.resolved = false; H.grace = null;
@@ -1281,7 +1337,8 @@ function hostCardPick(who, ids) {
   if (valid.length !== H.need[who]) return;
   H.picks[who] = valid;
   if (Object.keys(H.need).every((k) => H.picks[k])) {
-    const cards = Object.keys(H.need).flatMap((k) => H.picks[k]);
+    let cards = [...new Set(Object.keys(H.need).flatMap((k) => H.picks[k]))];
+    if (cards.length < 2) cards.push(H.offer.find((id) => !cards.includes(id))); // both picked the same card
     H.need = null;
     bcast({ t: 'cards_done', cards });
   }
@@ -1342,6 +1399,22 @@ async function hostChainTry(who, movie) {
 function acceptRematch() {
   S.rematch = null;
   if (S.isHost) hostStartMatch(); else send({ t: 'rematch_ok' });
+}
+
+// ---------- leaving ----------
+function doLeave(quiet) {
+  if (S.roomKind === 'solo' && S.searching && S.room) { // playing while waiting: go back to the queue
+    leaveRoom(true); resetMatch(); S.roomKind = null;
+    go(S.searchKind === 'film' ? 'filmsearching' : 'searching');
+    toast('Back in the queue');
+    return;
+  }
+  const solo = S.roomKind === 'solo' || S.roomKind === 'daily';
+  if (S.roomKind === 'daily' && S.h && S.h.daily) saveDailyProgress(S.h.daily, true);
+  const waiting = ['searching', 'roomwait', 'connecting', 'filmpick', 'filmsearching'].includes(S.screen);
+  const inGame = S.room && !waiting;
+  stopSearch(); leaveRoom(); resetMatch(); go('home');
+  if (!quiet || inGame) toast(waiting || !inGame ? 'Back home' : solo ? 'Game ended' : 'You left the match');
 }
 
 // ---------- report ----------
@@ -1417,6 +1490,7 @@ const ACT = {
   orderreset() { S.orderSel = []; renderOrder(); },
   orderlock() { if (S.orderSel.length === 4) answer(S.orderSel.slice()); },
   report() { openReport(); },
+  joininvite() { const c = S.inviteCode; S.inviteCode = null; if (c) { S.joinedViaInvite = true; joinRoom(c, 'friends'); } },
   async install(el) {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -1474,6 +1548,7 @@ const ACT = {
   home() { leaveRoom(); stopSearch(); resetMatch(); go('home'); },
   create() {
     stopSearch();
+    S.joinedViaInvite = false;
     const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const code = [...Array(4)].map(() => abc[Math.floor(Math.random() * abc.length)]).join('');
     joinRoom(code, 'friends');
@@ -1492,17 +1567,7 @@ const ACT = {
       setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 3000);
       return;
     }
-    if (S.roomKind === 'solo' && S.searching) { // playing while waiting: go back to the queue
-      leaveRoom(true); resetMatch(); S.roomKind = null;
-      go(S.searchKind === 'film' ? 'filmsearching' : 'searching');
-      toast('Back in the queue');
-      return;
-    }
-    const solo = S.roomKind === 'solo' || S.roomKind === 'daily';
-    if (S.roomKind === 'daily' && S.h && S.h.daily) saveDailyProgress(S.h.daily, true);
-    const waiting = ['searching', 'roomwait', 'connecting', 'filmpick', 'filmsearching'].includes(S.screen);
-    stopSearch(); leaveRoom(); resetMatch(); go('home');
-    toast(waiting ? 'Back home' : solo ? 'Game ended' : 'You left the match');
+    doLeave();
   },
   theme() {
     const t = isDark() ? 'light' : 'dark';
@@ -1590,7 +1655,7 @@ app.addEventListener('submit', (e) => {
     save('profile', profile);
     trackLobby();
     toast(`You're now ${profile.avatar} ${profile.name}`);
-    go('home');
+    go(S.screen === 'invite' ? 'invite' : 'home');
     return;
   }
   if (f.dataset.form === 'film') {
@@ -1630,7 +1695,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
   const room = new URLSearchParams(location.search).get('room');
   M.detectMode();
   connectLobby();
-  if (room && /^[A-Z0-9]{4}$/i.test(room)) joinRoom(room.toUpperCase(), 'friends');
+  if (room && /^[A-Z0-9]{4}$/i.test(room)) { S.inviteCode = room.toUpperCase(); go('invite'); }
   else go('home');
   window.__coldopen = { S, myId }; // handy for debugging
 })();

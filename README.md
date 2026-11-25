@@ -10,6 +10,12 @@ Just finished a movie? Tap **💬 Talk about a film**, search it (or tap one of 
 ## When nobody's around
 Online counts never include you ("just you here" / "1 other online"). While you wait for a match you can **play the Projectionist** — you stay in the queue (a bar at the bottom says so) and get pulled into a real match the moment someone joins.
 
+## Privacy-friendly loading
+Fonts (`css/fonts.css`, files under `/fonts/*`) and the Supabase library (`/vendor/supabase.js`) are served from the site's own domain via Netlify proxy rewrites in `netlify.toml`, so visitors' browsers never contact Google Fonts or a CDN. Film posters still load from TMDB's image servers.
+
+## Invites, back button, tab alerts
+Room links open a short welcome screen (pick your name, then join). The phone/browser back button stays inside the app (during a game: press twice to leave). When the tab is in the background, the title shows alerts like "🎟️ Match found!" or "💬 New message".
+
 ## Installable + sound
 Cinema Club can be installed as an app (manifest, icons, network-first service worker in `sw.js`; "📲 Install app" appears in the footer when the browser offers it). Sound effects are generated with Web Audio (`js/sound.js`), with vibration on phones and a mute button.
 

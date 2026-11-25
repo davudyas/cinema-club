@@ -498,3 +498,13 @@ body:has(#queuebar) #toast { bottom: 70px; }
 .pin.ask:active:not(:disabled) { transform: translateY(1px); }
 .pin.ask.asked { opacity: .55; }
 .pin.ask:disabled { cursor: default; }
+
+/* ---------- invite landing ---------- */
+.invite h2 { max-width: 20ch; }
+.invite > .muted { max-width: 34ch; margin: 0; line-height: 1.45; }
+.ticket-code.small span { font-size: 26px; width: 40px; height: 50px; border-radius: 10px; box-shadow: 0 3px 0 var(--shadow); }
+.invite-me { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(100%, 400px); }
+.invite-me .muted { margin: 0; }
+.invite-me .me-row { margin: 0; justify-content: center; }
+.invite-me .name-editor { margin: 4px 0 0; width: 100%; text-align: left; }
+.invite .btn.big { width: min(100%, 360px); }

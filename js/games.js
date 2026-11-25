@@ -34,6 +34,7 @@ export function availableGames() {
 }
 
 function takeFilm(ctx, pred = () => true) {
+  if (!ctx.pool.some((m) => !ctx.used.has(m.id) && pred(m))) ctx.used.clear(); // pool used up: start over
   const f = ctx.pool.find((m) => !ctx.used.has(m.id) && pred(m));
   if (f) ctx.used.add(f.id);
   return f;
@@ -170,6 +171,13 @@ export async function makeRound(game, ctx) {
       if (ctx.used.has(m.id) || !m.year || years.has(m.year)) continue;
       picked.push(m); years.add(m.year);
       if (picked.length === 4) break;
+    }
+    if (picked.length < 4) { // not enough unused films with different years: allow reuse
+      for (const m of shuffle(ctx.pool, RNG)) {
+        if (!m.year || years.has(m.year)) continue;
+        picked.push(m); years.add(m.year);
+        if (picked.length === 4) break;
+      }
     }
     if (picked.length < 4) throw new Error('Could not build a Timeline round');
     picked.forEach((m) => ctx.used.add(m.id));

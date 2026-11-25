@@ -56,5 +56,6 @@ export function sfx(name) {
 }
 export function buzz(pattern) {
   if (!on) return;
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return; // browsers block it before the first tap
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* not supported */ }
 }

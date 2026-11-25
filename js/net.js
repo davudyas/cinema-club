@@ -9,9 +9,19 @@ const params = new URLSearchParams(location.search);
 export const NET_MODE = params.get('net') === 'local' || !CONFIG.SUPABASE_URL ? 'local' : 'supabase';
 
 let sbPromise = null;
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (window.supabase && window.supabase.createClient) return res();
+    const el = document.createElement('script');
+    el.src = src; el.async = true;
+    el.onload = () => res(); el.onerror = () => { sbPromise = null; rej(new Error('Could not load ' + src)); };
+    document.head.appendChild(el);
+  });
+}
 function supabase() {
   if (!sbPromise) {
-    sbPromise = import('https://esm.sh/@supabase/supabase-js@2').then(({ createClient }) =>
+    // one file, served from our own domain (Netlify proxies it from jsDelivr) — see netlify.toml
+    sbPromise = loadScript('/vendor/supabase.js').then(() => window.supabase).then(({ createClient }) =>
       createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {
         auth: { persistSession: false, autoRefreshToken: false },
         realtime: { params: { eventsPerSecond: 20 } },
