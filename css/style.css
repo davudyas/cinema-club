@@ -535,3 +535,53 @@ body:has(#queuebar) #toast { bottom: 70px; }
   .top-r { gap: 6px; }
   .top-r .iconbtn { height: 33px; min-width: 33px; padding: 0 7px; }
 }
+
+/* ---------- footer always readable over the poster wall ---------- */
+html { overflow-x: clip; }
+.foot { position: relative; }
+.foot::before { content: ''; position: absolute; top: 0; bottom: 0; left: -50vw; right: -50vw; z-index: -1;
+  background: color-mix(in srgb, var(--paper) 94%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.foot { border-top-style: solid; border-top-color: var(--line); }
+.foot .link, .tmdb { color: var(--ink-2); }
+
+/* ---------- poster wall design options (html[data-wall]) ---------- */
+/* 1 · Soft veil: same wall, calmer everywhere */
+html[data-wall="1"] .pw-grid img.in { opacity: .3; }
+html[data-wall="1"] #posterwall::after { background: color-mix(in srgb, var(--paper) 72%, transparent); }
+
+/* 2 · Side lights: posters only at the edges, a clean column in the middle */
+html[data-wall="2"] .pw-grid img.in { opacity: .6; }
+html[data-wall="2"] #posterwall::after { background: linear-gradient(90deg,
+  color-mix(in srgb, var(--paper) 20%, transparent) 0%, var(--paper) 22%, var(--paper) 78%, color-mix(in srgb, var(--paper) 20%, transparent) 100%); }
+@media (max-width: 960px) { html[data-wall="2"] #posterwall::after { background: linear-gradient(180deg,
+  color-mix(in srgb, var(--paper) 35%, transparent) 0%, var(--paper) 30%, var(--paper) 100%); } }
+
+/* 3 · Frosted glass: clearer posters, content on frosted panels */
+html[data-wall="3"] .pw-grid img.in { opacity: .6; }
+html[data-wall="3"] #posterwall::after { background: color-mix(in srgb, var(--paper) 30%, transparent); }
+html[data-wall="3"] .home-l, html[data-wall="3"] .home-r, html[data-wall="3"] .filmpick, html[data-wall="3"] .center:not(.spin) {
+  background: color-mix(in srgb, var(--paper) 74%, transparent); backdrop-filter: blur(16px) saturate(1.15); -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  border: 1.5px solid color-mix(in srgb, var(--edge) 18%, transparent); border-radius: 26px; padding: 22px; }
+html[data-wall="3"] .home { padding-top: 14px; }
+html[data-wall="3"] .center:not(.spin) { margin: 16px 0 24px; }
+@media (max-width: 959px) { html[data-wall="3"] .home-r { margin-top: 14px; } }
+
+/* 4 · Duotone: posters tinted in the brand colours, like a printed cinema bill */
+html[data-wall="4"] .pw-grid img { filter: grayscale(1) contrast(1.15) brightness(1.05); }
+html[data-wall="4"] .pw-grid img.in { opacity: .5; }
+html[data-wall="4"] #posterwall::before { content: ''; position: absolute; inset: 0; background: var(--red); mix-blend-mode: color; opacity: .75; z-index: 1; }
+html[data-wall="4"] #posterwall::after { z-index: 2; background: color-mix(in srgb, var(--paper) 70%, transparent); }
+
+/* 5 · Ambient glow: posters blurred into soft colour, no shapes behind text */
+html[data-wall="5"] .pw-grid img { filter: blur(14px) saturate(1.35); }
+html[data-wall="5"] .pw-grid img.in { opacity: .75; }
+html[data-wall="5"] #posterwall::after { background: color-mix(in srgb, var(--paper) 55%, transparent); }
+:root[data-theme=dark][data-wall="5"] #posterwall::after { background: color-mix(in srgb, var(--paper) 62%, transparent); }
+
+/* preview switcher (only with ?preview=wall) */
+#wallpick { position: fixed; z-index: 70; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center;
+  background: var(--ink); color: var(--paper); padding: 8px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); max-width: calc(100% - 20px); font-size: 13px; font-weight: 700; }
+#wallpick span { padding: 0 6px; opacity: .8; }
+#wallpick button { border: 0; border-radius: 10px; padding: 8px 11px; font-weight: 800; font-size: 13px; background: color-mix(in srgb, var(--paper) 14%, transparent); color: var(--paper); }
+#wallpick button.on { background: var(--gold); color: #17140F; }
+@media (min-width: 960px) { #wallpick { top: 12px; bottom: auto; } }

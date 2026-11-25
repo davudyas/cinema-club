@@ -118,6 +118,25 @@ async function buildPosterWall() {
   } catch (e) { /* the wall is decoration only */ }
 }
 
+// Design preview for the poster wall: open the site with ?preview=wall (or ?wall=1..5)
+(function wallPreview() {
+  const q = new URLSearchParams(location.search);
+  const pick = q.get('wall');
+  if (pick && /^[1-5]$/.test(pick)) document.documentElement.dataset.wall = pick;
+  if (q.get('preview') !== 'wall') return;
+  const names = ['Soft veil', 'Side lights', 'Frosted glass', 'Duotone', 'Ambient glow'];
+  const bar = document.createElement('div');
+  bar.id = 'wallpick';
+  const render = () => {
+    const cur = document.documentElement.dataset.wall || '';
+    bar.innerHTML = '<span>Background:</span>' + names.map((n, i) => `<button data-w="${i + 1}" class="${cur === String(i + 1) ? 'on' : ''}">${i + 1} · ${n}</button>`).join('');
+  };
+  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (!b) return; document.documentElement.dataset.wall = b.dataset.w; render(); });
+  if (!document.documentElement.dataset.wall) document.documentElement.dataset.wall = '1';
+  render();
+  document.body.appendChild(bar);
+})();
+
 // Tab title alerts while the tab is in the background
 const BASE_TITLE = document.title;
 let unseen = 0;
