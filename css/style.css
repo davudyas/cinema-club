@@ -173,7 +173,11 @@ h1 .hl { color: var(--red); }
 .round.done .timer i { transition: none; width: 0; }
 .prompt { font: 800 24px/1.1 var(--display); letter-spacing: -.02em; margin: 2px 0 0; }
 .stage { position: relative; }
-.countdown { position: absolute; inset: 0; display: grid; place-items: center; font: 800 80px var(--display); color: var(--paper); background: rgba(23, 20, 15, .88); border-radius: var(--r); z-index: 5; animation: pop .5s infinite; }
+.countdown { position: absolute; inset: -2px; display: grid; place-items: center; font: 800 80px var(--display); color: #F4EEE2; background: #17140F; border-radius: var(--r); z-index: 5; animation: pop .5s infinite; }
+/* nothing readable or tappable before the countdown ends — fair start for both players */
+main.round:not(.live):not(.done) .options,
+main.round:not(.live):not(.done) .order-actions,
+main.round:not(.live):not(.done) .yearpick { visibility: hidden; }
 @keyframes pop { 0% { transform: scale(.96); } 30% { transform: scale(1); } }
 .media { border-radius: var(--r); overflow: hidden; border: 2px solid var(--edge); background: var(--screen); }
 .media.emoji { background: var(--card); font-size: clamp(56px, 17vw, 84px); text-align: center; padding: 26px 10px; letter-spacing: .08em; min-height: 160px; display: grid; place-items: center; }
@@ -405,3 +409,60 @@ input[type=range] { width: 100%; accent-color: var(--red); height: 28px; }
 .reason input, .check input { accent-color: var(--red); width: 18px; height: 18px; margin: 0; flex: none; }
 .sheet textarea { font: 15px/1.4 var(--body); color: var(--ink); background: var(--card); border: 1.5px solid var(--edge); border-radius: 12px; padding: 10px 12px; resize: vertical; }
 .check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+
+/* ---------- home v2 ---------- */
+.cta .btn.big { flex-direction: column; gap: 2px; line-height: 1.1; }
+.cta .btn.big small { font: 500 12.5px var(--body); opacity: .75; letter-spacing: 0; }
+.row.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.btn.small-btn { padding: 11px 8px; font-size: 14px; border-radius: 12px; box-shadow: 0 3px 0 var(--shadow); }
+.how { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.how li { display: flex; flex-direction: column; gap: 6px; background: var(--card); border: 1.5px dashed var(--line); border-radius: 12px; padding: 10px; font-size: 13px; line-height: 1.3; color: var(--ink-2); }
+.how b { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; font: 800 13px var(--display); }
+.how strong { color: var(--ink); }
+.daily-card { width: 100%; margin-top: 26px; display: flex; align-items: center; gap: 12px; text-align: left; background: var(--gold); color: #17140F; border: 2px solid var(--edge); border-radius: 16px; box-shadow: 0 4px 0 var(--shadow); padding: 12px 14px; transition: transform .1s; }
+.daily-card:hover { transform: translateY(-2px); }
+.daily-card:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--shadow); }
+.dc-ico { font-size: 28px; }
+.dc-txt { flex: 1; min-width: 0; }
+.dc-txt b { display: block; font: 800 17px var(--display); }
+.dc-txt small { font-size: 13px; font-weight: 500; }
+.daily-card .go { font-weight: 800; font-size: 14px; white-space: nowrap; }
+
+/* ---------- daily screen ---------- */
+.daily h2 { max-width: 22ch; }
+.dgames { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 400px; }
+.dgames span { background: var(--card); border: 1.5px solid var(--line); border-radius: 99px; padding: 5px 10px; font-size: 13px; font-weight: 700; }
+.dgrid { font-size: 34px; letter-spacing: 4px; }
+.daily .final span { font-size: 28px; }
+.share-row { width: min(100%, 360px); }
+.streak { font-weight: 800; color: var(--red); margin: 0; }
+
+/* ---------- spin: description appears once the reel lands ---------- */
+[data-spinnote] { transition: opacity .3s; }
+.reel.landed { animation: landed .4s; }
+@keyframes landed { 40% { transform: scale(1.04); } }
+
+/* ---------- footer + sheets ---------- */
+.foot { border-top: 2px dashed var(--line); margin-top: 30px; padding: 18px 0 28px; display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; }
+.foot nav { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.foot .link { font-size: 14px; }
+.tmdb { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; line-height: 1.4; text-decoration: none; max-width: 420px; text-align: left; }
+.tmdb img { flex: none; }
+.tmdb.big { background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px; flex-direction: column; align-items: flex-start; font-size: 13px; }
+.sheet h4 { font: 800 16px var(--display); margin: 6px 0 -4px; }
+.sheet p, .sheet li { font-size: 14.5px; line-height: 1.5; margin: 0; }
+.sheet ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.sheet a.btn { text-decoration: none; color: inherit; }
+
+/* ---------- wide screens: two columns on the home page ---------- */
+@media (min-width: 960px) {
+  #app[data-screen=home] { max-width: 1120px; padding: 0 32px; }
+  .home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 56px; align-items: start; padding-top: 24px; }
+  .home h1 { font-size: 64px; }
+  .home-r .daily-card { margin-top: 10px; }
+  .home-r .games { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .home-r .game-tile:last-child:nth-child(odd) { grid-column: auto; }
+  .home-l { position: sticky; top: 20px; }
+  #app:not([data-screen=home]) { max-width: 600px; }
+  .foot { flex-direction: row; justify-content: space-between; }
+}

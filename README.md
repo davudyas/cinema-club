@@ -7,9 +7,14 @@ Includes a light and dark theme (follows your device, toggle with ☾/☀︎) an
 ## Talk about a film
 Just finished a movie? Tap **💬 Talk about a film**, search it, and you're matched with someone who picked the same film. The "Now discussing" list shows which films others are waiting to talk about, so you can join with one tap. The chat opens straight away with the film pinned and three spoiler-friendly question cards; either person can tap 🎲 to play a movie game together and come back to the chat afterwards.
 
+## Daily challenge
+📅 Five rounds that are the same for everyone each day (UTC), picked with a date-based seed. Up to 200 points per round (100 for a correct answer + up to 100 for speed), one try per day, streaks, and a shareable result like `🟩🟥🟩🟩🟩 790/1000`. Results are stored only in the player's browser.
+
 ## Safety
 - 🚩 **Report** (top right whenever you're connected to someone): pick a reason, add details, optionally block & leave. Reports land in the Supabase table `cinema_club_reports` (insert-only for visitors) with the reported person's recent messages attached. Read them in Supabase → Table editor.
 - **Block & leave** stops you from being matched with that device again.
+- **Chat filter** (`js/filter.js`): blurs common insults/slurs in English, German and Turkish and hides emails, phone numbers and @handles. Reports keep the unfiltered text for review.
+- **About & rules** panel in the footer, with the TMDB credit and a feedback link.
 
 ## Your name
 Tap your name on the home page to choose your emoji and both words yourself, or ↻ for a random one.

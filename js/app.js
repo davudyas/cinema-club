@@ -1,7 +1,8 @@
 // Cinema Club — main app: screens, matchmaking, host-authoritative game loop, chat.
 import { NET_MODE, openChannel, LoopChannel, fileReport } from './net.js';
+import { filterText } from './filter.js';
 import * as M from './movies.js';
-import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle,
+import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle, seededRng, hashString,
   WIN_TARGET, MAX_ROUNDS, CHAIN_TURN_MS, CHAIN_MAX_USES } from './games.js';
 import { QUESTION_CARDS, FILM_CARDS, ADJ, NOUN, AVATARS, randomName, randomAvatar } from './content.js';
 
@@ -73,7 +74,7 @@ const leaveBtn = () => `<button class="iconbtn leave" data-act="leavematch" aria
 const topRight = (...parts) => `<div class="top-r">${parts.join('')}</div>`;
 const FLAG = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>';
 // report is available whenever you're connected to a real person (not the solo bot)
-const reportBtn = () => (S.partner && S.partner.key !== '~bot' ? `<button class="iconbtn report" data-act="report" aria-label="Report ${esc(S.partner.name)}" title="Report">${FLAG}</button>` : '');
+const reportBtn = () => (S.partner && !['~bot', '~daily'].includes(S.partner.key) ? `<button class="iconbtn report" data-act="report" aria-label="Report ${esc(S.partner.name)}" title="Report">${FLAG}</button>` : '');
 const onlinePill = () => `<span class="online" data-online>${onlineText()}</span>`;
 function onlineText() {
   if (NET_MODE === 'local') return `<b></b>${S.online} online (local test)`;
@@ -97,10 +98,86 @@ function pChip(p, score) {
   return `<span class="av">${esc(p.avatar)}</span><span class="pn">${p.key === myId ? 'You' : esc(p.name)}${lock}</span>${score !== undefined ? `<span class="score" data-score="${esc(p.key)}">${score}</span>` : ''}`;
 }
 
+// ---------- daily challenge ----------
+const DAILY_EPOCH = Date.UTC(2026, 10, 25); // daily #1
+const DAILY_GAMES = ['emoji', 'plot', 'whoswho', 'director', 'timeline', 'cast', 'higherlower', 'blur'];
+const dayKey = (d = new Date()) => d.toISOString().slice(0, 10);
+function loadDaily() {
+  try { const v = localStorage.getItem('cinemaclub:daily'); const st = v ? JSON.parse(v) : null; if (st && st.results) return st; } catch (e) { /* private mode */ }
+  return { results: {}, lastPlayed: null, streak: 0 };
+}
+function saveDaily(st) {
+  const keys = Object.keys(st.results).sort();
+  keys.slice(0, Math.max(0, keys.length - 40)).forEach((k) => delete st.results[k]);
+  try { localStorage.setItem('cinemaclub:daily', JSON.stringify(st)); } catch (e) { /* private mode */ }
+}
+function dailyInfo() {
+  const key = dayKey();
+  const n = Math.floor((Date.parse(key) - DAILY_EPOCH) / 864e5) + 1;
+  const seed = hashString('cinema-club-daily:' + key);
+  const avail = availableGames();
+  const games = shuffle(DAILY_GAMES.filter((g) => avail.includes(g)), seededRng(seed ^ 0x9e3779b9)).slice(0, 5);
+  const st = loadDaily();
+  const yesterday = dayKey(new Date(Date.now() - 864e5));
+  const streak = st.lastPlayed === key || st.lastPlayed === yesterday ? st.streak : 0;
+  return { key, n, seed, games, today: st.results[key] || null, streak };
+}
+function nextDailyIn() {
+  const now = new Date();
+  const ms = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1) - now;
+  const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60, sec = Math.floor(ms / 1000) % 60;
+  return `${h}h ${String(m).padStart(2, '0')}m ${String(sec).padStart(2, '0')}s`;
+}
+function dailyCardHtml() {
+  const d = dailyInfo();
+  const r = d.today;
+  return `<button class="daily-card" data-act="daily">
+      <span class="dc-ico" aria-hidden="true">📅</span>
+      <span class="dc-txt"><b>Daily challenge #${d.n}</b><small>${r ? `${r.grid.join('')} · ${r.score} pts${d.streak > 1 ? ` · 🔥 ${d.streak}` : ''}` : '5 rounds · same for everyone today'}</small></span>
+      <span class="go">${r ? 'Results →' : 'Play →'}</span>
+    </button>`;
+}
+const dailyShareText = (d) => `🎬 Cinema Club Daily #${d.n}\n${d.today.grid.join('')} ${d.today.score}/1000${d.streak > 1 ? ` 🔥${d.streak}` : ''}\n${location.origin}`;
+const dailyShareHtml = () => `<div class="row share-row"><button class="btn primary" data-act="dailycopy">Copy result</button>${navigator.share ? '<button class="btn" data-act="dailyshare">Share…</button>' : ''}</div>`;
+
+// ---------- footer + about ----------
+function footerHtml() {
+  return `<footer class="foot">
+      <nav><button class="link" data-act="about">About &amp; rules</button><a class="link" href="https://x.com/davudsdiary" target="_blank" rel="noopener">Send feedback on X</a></nav>
+      <a class="tmdb" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="assets/tmdb-logo.svg" alt="TMDB" width="92" height="12"><span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span></a>
+    </footer>`;
+}
+function openSheet(inner, label) {
+  closeReport();
+  const w = document.createElement('div');
+  w.id = 'modal';
+  w.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(label)}">${inner}</div>`;
+  document.body.appendChild(w);
+  w.addEventListener('click', (e) => { if (e.target === w || e.target.closest('[data-close]')) closeReport(); });
+  const c = w.querySelector('[data-close]'); if (c) c.focus();
+}
+function openAbout() {
+  openSheet(`
+    <h3>About Cinema Club</h3>
+    <p>Cinema Club matches film fans for a quick movie game and a chat — or with someone who just watched the same film. No sign-up: your nickname lives in your browser.</p>
+    <h4>House rules</h4>
+    <ul>
+      <li><b>Be kind.</b> No insults, hate or sexual content. Bad words are blurred automatically.</li>
+      <li><b>Keep it anonymous.</b> Don't share personal info — emails, phone numbers and @handles are hidden automatically.</li>
+      <li><b>Report &amp; block.</b> Use 🚩 if someone crosses a line. Blocked people won't be matched with you again.</li>
+    </ul>
+    <h4>Privacy</h4>
+    <p>Chats aren't saved anywhere — they disappear when you leave. If you report someone, their recent messages are sent with the report so it can be reviewed. Your name, theme and daily results stay on this device.</p>
+    <h4>Movie data</h4>
+    <a class="tmdb big" href="https://www.themoviedb.org/" target="_blank" rel="noopener"><img src="assets/tmdb-logo.svg" alt="TMDB" width="150" height="20"><span>This product uses the TMDB API but is not endorsed or certified by TMDB. Film titles, posters and credits come from The Movie Database.</span></a>
+    <div class="row"><a class="btn" href="https://x.com/davudsdiary" target="_blank" rel="noopener">Send feedback</a><button class="btn primary" data-close>Got it</button></div>`, 'About Cinema Club');
+}
+
 const VIEWS = {
   home: () => `
     <header class="top">${logo()}${topRight(onlinePill(), themeBtn())}</header>
     <main class="home">
+      <div class="home-l">
       <div class="me-row">
         <button class="me-chip" data-act="editname" title="Choose your name" aria-expanded="false">
           <span class="av" data-myav>${esc(profile.avatar)}</span><span data-myname>${esc(profile.name)}</span><span class="reroll" aria-hidden="true">✎</span>
@@ -117,23 +194,31 @@ const VIEWS = {
         <div class="row"><button type="button" class="btn" data-act="editname">Cancel</button><button type="submit" class="btn primary">Save name</button></div>
       </form>
       <h1>Play first.<br><span class="hl">Then talk movies.</span></h1>
-      <p class="lede">Get matched with a random film fan, play a quick movie mini-game, and the winner picks two question cards to get the conversation rolling. Just finished a film? Find someone who watched it too.</p>
+      <p class="lede">Meet a film fan, play a two-minute movie game, then talk films. Just finished something? Find someone who watched it too.</p>
       <div class="cta">
-        <button class="btn primary big" data-act="match">🎟️ Random match</button>
-        <button class="btn ink big" data-act="filmpick">💬 Talk about a film</button>
-        <button class="btn gold" data-act="solo">🍿 Play solo vs. the Projectionist</button>
-        <div class="row">
-          <button class="btn" data-act="create">Create room</button>
-          <button class="btn" data-act="showjoin">Join room</button>
+        <button class="btn primary big" data-act="match">🎟️ Random match <small>game, then chat</small></button>
+        <button class="btn ink big" data-act="filmpick">💬 Talk about a film <small>same film, spoilers OK</small></button>
+        <div class="row three">
+          <button class="btn small-btn" data-act="solo">🍿 Solo</button>
+          <button class="btn small-btn" data-act="create">Create room</button>
+          <button class="btn small-btn" data-act="showjoin">Join room</button>
         </div>
         <form class="join hidden" data-form="join">
           <input name="code" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code" />
           <button class="btn primary" type="submit">Join</button>
         </form>
       </div>
+      <ol class="how" aria-label="How it works">
+        <li><b>1</b><span><strong>Match</strong> with a stranger or a friend</span></li>
+        <li><b>2</b><span><strong>Play</strong> a quick movie game</span></li>
+        <li><b>3</b><span><strong>Chat</strong> with question cards to start</span></li>
+      </ol>
+      </div>
+      <div class="home-r">
+      ${dailyCardHtml()}
       <section class="discussing home-disc ${discussingList().length ? '' : 'hidden'}" data-discussing data-hideempty>${discussingHtml()}</section>
       <section class="strip">
-        <div class="strip-head"><span>Now showing</span><span>${GAME_IDS.length} mini-games · tap to practise</span></div>
+        <div class="strip-head"><span>Now showing</span><span>${GAME_IDS.length} games · tap to practise</span></div>
         <div class="games">
           ${GAME_IDS.map((g) => `
             <button class="game-tile" data-act="practise" data-game="${g}">
@@ -143,8 +228,36 @@ const VIEWS = {
             </button>`).join('')}
         </div>
       </section>
-      <p class="fine">Be kind. Don't share personal info. You can leave or block anyone, anytime.<span data-datamode></span></p>
-    </main>`,
+      </div>
+    </main>
+    ${footerHtml()}`,
+
+  dailyintro: () => {
+    const d = dailyInfo();
+    const res = d.today;
+    return `
+    <header class="top">${logo()}${topRight(themeBtn())}</header>
+    <main class="center daily">
+      <p class="eyebrow">Daily challenge #${d.n}</p>
+      ${res ? `
+        <h2>${res.done ? 'You played today’s reel' : 'Today’s reel is used up'}</h2>
+        <div class="dgrid">${res.grid.join('')}${'⬛'.repeat(Math.max(0, 5 - res.grid.length))}</div>
+        <div class="final">${res.score}<span>/1000</span></div>
+        ${dailyShareHtml(d)}
+        <p class="muted">Next reel in <b data-countdown-next>${nextDailyIn()}</b></p>`
+      : `
+        <h2>Five rounds. Same for everyone today.</h2>
+        <p class="muted">Get them right and get them fast — up to 200 points a round. One try per day, so make it count.</p>
+        <div class="dgames">${d.games.map((g) => `<span>${GAMES[g].icon} ${GAMES[g].name}</span>`).join('')}</div>
+        <button class="btn primary big" data-act="dailystart">▶ Start today’s reel</button>`}
+      ${d.streak > 1 ? `<p class="streak">🔥 ${d.streak}-day streak</p>` : ''}
+      <button class="link" data-act="home">Back home</button>
+    </main>`;
+  },
+
+  dailyload: () => `
+    <header class="top">${logo()}${topRight(leaveBtn())}</header>
+    <main class="center"><div class="projector" aria-hidden="true"><span></span><span></span></div><h2>Rolling today’s reel…</h2></main>`,
 
   filmpick: () => `
     <header class="top">${logo()}${topRight(onlinePill(), leaveBtn())}</header>
@@ -211,7 +324,7 @@ const VIEWS = {
       <div class="reel ${S.game ? '' : 'idle'}"><div class="reel-track">
         ${items.map((g) => `<div class="reel-item"><span>${GAMES[g].icon}</span>${GAMES[g].name}</div>`).join('')}
       </div></div>
-      <p class="muted" data-spinnote>${S.game ? esc(GAMES[S.game].desc) : 'Picking a game…'}</p>
+      <p class="muted" data-spinnote>Picking a game…</p>
     </main>`;
   },
 
@@ -253,7 +366,7 @@ const VIEWS = {
     return `
     <header class="top slim">${vsBar()}${reportBtn()}${leaveBtn()}</header>
     <main class="round kind-${r.kind}">
-      <div class="round-meta"><span>${GAMES[r.game].icon} ${GAMES[r.game].name}</span><span>Round ${r.n} · first to ${WIN_TARGET}</span></div>
+      <div class="round-meta"><span>${GAMES[r.game].icon} ${GAMES[r.game].name}</span><span>${S.roomKind === 'daily' && S.daily ? `Daily #${S.daily.n} · round ${r.n} of ${S.daily.games.length}` : `Round ${r.n} · first to ${WIN_TARGET}`}</span></div>
       <div class="timer"><i style="--dur:${r.duration}ms"></i></div>
       <h3 class="prompt">${esc(d.prompt)}</h3>
       <div class="stage">${media}<div class="countdown" data-countdown>3</div></div>
@@ -397,6 +510,7 @@ const AFTER = {
     requestAnimationFrame(() => requestAnimationFrame(() => {
       track.style.transform = `translateY(calc(-${idx} * var(--reel-h)))`;
     }));
+    uiLater(2450, () => { const n = $('[data-spinnote]'); if (n) n.textContent = GAMES[S.game].desc; $('.reel').classList.add('landed'); });
   },
   round() {
     const r = S.round;
@@ -456,6 +570,9 @@ const AFTER = {
       if (Date.now() - lastTyping > 2000) { lastTyping = Date.now(); send({ t: 'typing' }); }
     });
     uiEvery(1000, updateTyping);
+  },
+  dailyintro() {
+    uiEvery(1000, () => { const el = $('[data-countdown-next]'); if (el) el.textContent = nextDailyIn(); });
   },
   matchend() {
     if (S.roomKind === 'solo') uiLater(2600, () => go('soloend'));
@@ -535,7 +652,8 @@ function showResult() {
   } else {
     line = `${esc(res.reveal.title)}${res.reveal.year ? ` <span class="muted">(${res.reveal.year})</span>` : ''}`;
   }
-  const who = res.winner === myId ? '🎉 Point to you!' : res.winner ? `${esc(S.partner.name)} takes it` : 'No point this round';
+  const who = S.roomKind === 'daily' ? (res.pts ? `✅ +${res.pts} points` : '❌ No points this round')
+    : res.winner === myId ? '🎉 Point to you!' : res.winner ? `${esc(S.partner.name)} takes it` : 'No point this round';
   $('[data-verdict]').innerHTML = `<div class="verdict-in ${res.winner === myId ? 'win' : res.winner ? 'lose' : ''}"><b>${who}</b><span>${line}</span></div>`;
   updateScores();
 }
@@ -664,7 +782,7 @@ function updateBanner() {
   } else b.classList.add('hidden');
 }
 function cleanText(t) {
-  return t.replace(/\s+/g, ' ').trim().slice(0, 300)
+  return filterText(t.replace(/\s+/g, ' ').trim().slice(0, 300))
     .replace(/\b((https?:\/\/|www\.)\S+|\S+\.(com|net|org|de|io|app|me|ly|gg)(\/\S*)?)\b/gi, '[link removed]');
 }
 
@@ -893,7 +1011,7 @@ function handle(m) {
     case 'chat':
       if (m.from === myId) return;
       S.typingUntil = 0;
-      pushMsg({ from: m.from, text: cleanText(String(m.text || '')) });
+      pushMsg({ from: m.from, text: cleanText(String(m.text || '')), raw: String(m.text || '').slice(0, 300) });
       updateTyping();
       break;
     case 'typing':
@@ -944,7 +1062,13 @@ async function hostNextRound() {
   const H = S.h;
   H.n++;
   let r;
-  try { r = await makeRound(H.game, H.ctx); } catch (e) { console.error(e); toast('Could not load the next round'); return hostEndMatch(); }
+  if (H.daily) {
+    const it = H.daily.rounds[H.n - 1];
+    if (!it) return hostEndDaily();
+    H.game = it.game; r = it.r;
+  } else {
+    try { r = await makeRound(H.game, H.ctx); } catch (e) { console.error(e); toast('Could not load the next round'); return hostEndMatch(); }
+  }
   if (S.h !== H) return;
   H.round = r; H.answers = {}; H.resolved = false; H.grace = null;
   H.secret = { n: H.n, answer: r.answer };
@@ -978,6 +1102,18 @@ function hostResolve(n) {
   if (!H || H.resolved || (n !== undefined && n !== H.n)) return; // ignore timers left over from an earlier round
   H.resolved = true;
   const r = H.round;
+  if (H.daily) {
+    const a = H.answers[myId];
+    const pts = a && a.ok ? 100 + Math.round(100 * Math.max(0, 1 - a.elapsed / r.duration)) : 0;
+    H.daily.points += pts;
+    H.daily.grid.push(a ? (a.ok ? '🟩' : '🟥') : '⬛');
+    H.scores[myId] = H.daily.points;
+    const last = H.n >= H.daily.rounds.length;
+    saveDailyProgress(H.daily, last);
+    bcast({ t: 'result', n: H.n, winner: pts ? myId : null, pts, answer: r.answer, reveal: r.reveal, answers: H.answers, scores: { ...H.scores } });
+    hLater(3200, last ? hostEndDaily : hostNextRound);
+    return;
+  }
   const ents = Object.entries(H.answers);
   let winner = null;
   if (r.kind === 'year') {
@@ -991,6 +1127,51 @@ function hostResolve(n) {
   bcast({ t: 'result', n: H.n, winner, answer: r.answer, reveal: r.reveal, answers: H.answers, scores: { ...H.scores } });
   const done = Object.values(H.scores).some((s) => s >= WIN_TARGET) || H.n >= MAX_ROUNDS;
   hLater(3400, done ? hostEndMatch : hostNextRound);
+}
+function saveDailyProgress(dl, done) {
+  const st = loadDaily();
+  st.results[S.daily.key] = { score: dl.points, grid: dl.grid.slice(), done };
+  saveDaily(st);
+}
+function hostEndDaily() {
+  hostStop();
+  if (S.h && S.h.daily) saveDailyProgress(S.h.daily, true);
+  const room = S.room; S.room = null; if (room) room.leave();
+  S.roomKind = null; S.partner = null;
+  go('dailyintro');
+}
+async function startDaily() {
+  const d = dailyInfo();
+  if (d.today) return go('dailyintro');
+  stopSearch(); await leaveRoom(true); resetMatch();
+  // one try per day: the attempt is recorded the moment it starts
+  const st = loadDaily();
+  const yesterday = dayKey(new Date(Date.now() - 864e5));
+  st.streak = st.lastPlayed === yesterday ? st.streak + 1 : st.lastPlayed === d.key ? st.streak : 1;
+  st.lastPlayed = d.key;
+  st.results[d.key] = { score: 0, grid: [], done: false };
+  saveDaily(st);
+  S.roomKind = 'daily'; S.daily = d;
+  const ch = new LoopChannel(myId, { name: `Daily #${d.n}`, avatar: '📅' });
+  S.room = ch;
+  ch.onMsg((m) => { if (ch === S.room) handle(m); });
+  S.partner = { key: '~daily', name: `Daily #${d.n}`, avatar: '📅' };
+  S.isHost = true;
+  S.scores = { [myId]: 0 };
+  go('dailyload');
+  hostStop();
+  const H = (S.h = { timers: [], stopped: false, n: 0, secret: null, daily: { rounds: [], points: 0, grid: [] } });
+  H.scores = { [myId]: 0 };
+  const rng = seededRng(d.seed);
+  let pool = [];
+  try { pool = await M.getDailyPool(rng); } catch (e) { console.error(e); }
+  H.ctx = { pool, used: new Set(), usedEmoji: new Set(), rng };
+  for (const g of d.games) {
+    try { H.daily.rounds.push({ game: g, r: await makeRound(g, H.ctx) }); } catch (e) { console.error('daily round failed', g, e); }
+    if (S.h !== H) return;
+  }
+  if (!H.daily.rounds.length) { toast('Could not load today’s reel — try again later'); const s2 = loadDaily(); delete s2.results[d.key]; saveDaily(s2); return go('home'); }
+  hostNextRound();
 }
 function hostEndMatch() {
   const H = S.h;
@@ -1104,7 +1285,7 @@ function openReport() {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true; btn.textContent = 'Sending…';
-    const theirs = S.messages.filter((m) => !m.sys && m.from === p.key).slice(-15).map((m) => `${p.name}: ${m.text}`);
+    const theirs = S.messages.filter((m) => !m.sys && m.from === p.key).slice(-15).map((m) => `${p.name}: ${m.raw || m.text}`);
     const mine = S.messages.filter((m) => !m.sys && m.from === myId).slice(-5).map((m) => `reporter: ${m.text}`);
     const context = [`room: ${S.roomKind}${S.film ? ` · film: ${S.film.title}` : ''}${S.game ? ` · game: ${S.game}` : ''}`, ...theirs, ...mine].join('\n').slice(0, 4000);
     try {
@@ -1153,6 +1334,14 @@ const ACT = {
   orderreset() { S.orderSel = []; renderOrder(); },
   orderlock() { if (S.orderSel.length === 4) answer(S.orderSel.slice()); },
   report() { openReport(); },
+  about() { openAbout(); },
+  daily() { go('dailyintro'); },
+  dailystart() { startDaily(); },
+  async dailycopy() {
+    const t = dailyShareText(dailyInfo());
+    try { await navigator.clipboard.writeText(t); toast('Result copied — paste it anywhere'); } catch (e) { prompt('Copy your result:', t); }
+  },
+  dailyshare() { navigator.share({ text: dailyShareText(dailyInfo()) }).catch(() => {}); },
   match() { startSearch(); },
   filmpick() { stopSearch(); leaveRoom(); go('filmpick'); },
   pickfilm(el) {
@@ -1193,7 +1382,8 @@ const ACT = {
       setTimeout(() => { if (el.isConnected) { el.classList.remove('armed'); el.textContent = '✕'; } }, 3000);
       return;
     }
-    const solo = S.roomKind === 'solo';
+    const solo = S.roomKind === 'solo' || S.roomKind === 'daily';
+    if (S.roomKind === 'daily' && S.h && S.h.daily) saveDailyProgress(S.h.daily, true);
     const waiting = ['searching', 'roomwait', 'connecting', 'filmpick', 'filmsearching'].includes(S.screen);
     stopSearch(); leaveRoom(); resetMatch(); go('home');
     toast(waiting ? 'Back home' : solo ? 'Game ended' : 'You left the match');

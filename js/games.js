@@ -22,8 +22,11 @@ export const MAX_ROUNDS = 7;
 export const CHAIN_TURN_MS = 30000;
 export const CHAIN_MAX_USES = 3;
 
-export const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const rand = (a) => a[Math.floor(Math.random() * a.length)];
+export const shuffle = (a, r = Math.random) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const rand = (a, r = Math.random) => a[Math.floor(r() * a.length)];
+// seeded RNG for the daily challenge (same rounds for everyone)
+export function seededRng(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let x = Math.imul(t ^ (t >>> 15), 1 | t); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
+export function hashString(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 export function availableGames() {
   // abstract demo art can't be recognised, so image games need real TMDB data
@@ -36,19 +39,21 @@ function takeFilm(ctx, pred = () => true) {
   return f;
 }
 function optionsFor(correct, ctx, n = 4) {
-  const others = shuffle(ctx.pool.filter((m) => m.title !== correct.title)).slice(0, n - 1).map((m) => m.title);
-  const opts = shuffle([correct.title, ...others]);
+  const r = ctx.rng || Math.random;
+  const others = shuffle(ctx.pool.filter((m) => m.title !== correct.title), r).slice(0, n - 1).map((m) => m.title);
+  const opts = shuffle([correct.title, ...others], r);
   return { options: opts, answer: opts.indexOf(correct.title) };
 }
 
 // Returns { kind: 'mc'|'pair'|'year', duration, data, answer, reveal }
 export async function makeRound(game, ctx) {
+  const RNG = ctx.rng || Math.random;
   if (game === 'emoji') {
     const left = EMOJI_FILMS.filter((e) => !ctx.usedEmoji.has(e[0]));
-    const [title, year, emoji] = rand(left.length ? left : EMOJI_FILMS);
+    const [title, year, emoji] = rand(left.length ? left : EMOJI_FILMS, RNG);
     ctx.usedEmoji.add(title);
-    const others = shuffle(EMOJI_FILMS.filter((e) => e[0] !== title)).slice(0, 3).map((e) => e[0]);
-    const options = shuffle([title, ...others]);
+    const others = shuffle(EMOJI_FILMS.filter((e) => e[0] !== title), RNG).slice(0, 3).map((e) => e[0]);
+    const options = shuffle([title, ...others], RNG);
     return { kind: 'mc', duration: 15000, data: { media: { type: 'emoji', text: emoji }, prompt: 'Which film is this?', options },
       answer: options.indexOf(title), reveal: { title, year } };
   }
@@ -57,7 +62,7 @@ export async function makeRound(game, ctx) {
     const { options, answer } = optionsFor(f, ctx);
     const media = game === 'blur'
       ? { type: 'blur', src: f.poster }
-      : { type: 'zoom', src: f.backdrop, fx: 25 + Math.round(Math.random() * 50), fy: 25 + Math.round(Math.random() * 50) };
+      : { type: 'zoom', src: f.backdrop, fx: 25 + Math.round(RNG() * 50), fy: 25 + Math.round(RNG() * 50) };
     return { kind: 'mc', duration: 16000, data: { media, prompt: game === 'blur' ? 'Name this poster' : 'Name this scene', options },
       answer, reveal: { title: f.title, year: f.year, poster: f.poster } };
   }
@@ -77,7 +82,7 @@ export async function makeRound(game, ctx) {
     throw new Error('Could not build a Cast Call round');
   }
   if (game === 'higherlower') {
-    const variants = shuffle(['older', 'rating', 'runtime']);
+    const variants = shuffle(['older', 'rating', 'runtime'], RNG);
     for (let tries = 0; tries < 8; tries++) {
       const variant = variants[tries % 3];
       const a = takeFilm(ctx), b = takeFilm(ctx);
@@ -126,12 +131,12 @@ export async function makeRound(game, ctx) {
       const dir = d.directors[0];
       if (!dir) continue;
       if (ctx.directors.size < 8) { // collect other directors from the pool for wrong answers
-        const others = await Promise.all(shuffle(ctx.pool.filter((m) => m.id !== f.id)).slice(0, 8).map((m) => getDetails(m.id).catch(() => null)));
+        const others = await Promise.all(shuffle(ctx.pool.filter((m) => m.id !== f.id), RNG).slice(0, 8).map((m) => getDetails(m.id).catch(() => null)));
         others.forEach((o) => o && o.directors.forEach((n) => ctx.directors.add(n)));
       }
-      const wrong = shuffle([...ctx.directors].filter((n) => !d.directors.includes(n))).slice(0, 3);
+      const wrong = shuffle([...ctx.directors].filter((n) => !d.directors.includes(n)), RNG).slice(0, 3);
       if (wrong.length < 3) continue;
-      const options = shuffle([dir, ...wrong]);
+      const options = shuffle([dir, ...wrong], RNG);
       return { kind: 'mc', duration: 12000, data: { media: { type: 'poster', src: f.poster, title: f.title, year: f.year }, prompt: 'Who directed it?', options },
         answer: options.indexOf(dir), reveal: { title: `${dir} directed ${f.title}`, year: f.year, poster: f.poster } };
     }
@@ -161,7 +166,7 @@ export async function makeRound(game, ctx) {
   if (game === 'timeline') {
     const picked = [];
     const years = new Set();
-    for (const m of shuffle(ctx.pool)) {
+    for (const m of shuffle(ctx.pool, RNG)) {
       if (ctx.used.has(m.id) || !m.year || years.has(m.year)) continue;
       picked.push(m); years.add(m.year);
       if (picked.length === 4) break;

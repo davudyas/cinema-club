@@ -99,6 +99,22 @@ export async function getPool() {
   return shuffle(out);
 }
 
+// Daily challenge: the same films for everyone on the same day.
+export async function getDailyPool(rng) {
+  await detectMode();
+  const seededShuffle = (arr) => { arr = arr.slice(); for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+  if (mode === 'demo') return seededShuffle(DEMO.map(strip).sort((a, b) => a.id - b.id));
+  const pages = seededShuffle([...Array(20)].map((_, i) => i + 1)).slice(0, 3);
+  const res = await Promise.all(pages.map((page) =>
+    api('/discover/movie', { sort_by: 'vote_count.desc', page, include_adult: 'false', language: 'en-US' }).catch(() => ({ results: [] }))));
+  const seen = new Set();
+  const out = [];
+  for (const r of res) for (const m of r.results || []) {
+    if (!seen.has(m.id) && m.poster_path && m.backdrop_path && m.release_date) { seen.add(m.id); out.push(norm(m)); }
+  }
+  return seededShuffle(out.sort((a, b) => a.id - b.id));
+}
+
 export async function getDetails(id) {
   if (DEMO_BY_ID.has(id)) {
     const m = DEMO_BY_ID.get(id);
