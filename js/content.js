@@ -148,10 +148,10 @@ export const FILM_CARDS = [
   'Favourite line or moment of dialogue?',
 ];
 
-const ADJ = ['Sleepy', 'Dramatic', 'Method', 'Brooding', 'Chatty', 'Twisty', 'Noir', 'Cosmic', 'Shaky-cam', 'Slow-mo',
+export const ADJ = ['Sleepy', 'Dramatic', 'Method', 'Brooding', 'Chatty', 'Twisty', 'Noir', 'Cosmic', 'Shaky-cam', 'Slow-mo',
   'Overdubbed', 'Unrated', 'Cult', 'Director’s-cut', 'Technicolor', 'Silent', 'Midnight', 'Blockbuster', 'Indie', 'Lo-fi',
   'Plot-twist', 'Widescreen', 'Sequel-hungry', 'Black-and-white', 'Popcorn'];
-const NOUN = ['Projectionist', 'Stunt Double', 'Usher', 'Extra', 'Boom Operator', 'Gaffer', 'Critic', 'Screenwriter',
+export const NOUN = ['Projectionist', 'Stunt Double', 'Usher', 'Extra', 'Boom Operator', 'Gaffer', 'Critic', 'Screenwriter',
   'Ticket Taker', 'Foley Artist', 'Script Doctor', 'Location Scout', 'Clapper', 'Cinephile', 'Matte Painter', 'Narrator',
   'Best Boy', 'Film Buff', 'Casting Agent', 'Stand-in'];
 export const AVATARS = ['🍿', '🎬', '🎞️', '📽️', '🎟️', '🎥', '🦉', '🐈‍⬛', '🦊', '🐸', '🐙', '🦖', '🐧', '🦝', '🐌', '🦄'];

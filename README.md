@@ -7,6 +7,13 @@ Includes a light and dark theme (follows your device, toggle with ☾/☀︎) an
 ## Talk about a film
 Just finished a movie? Tap **💬 Talk about a film**, search it, and you're matched with someone who picked the same film. The "Now discussing" list shows which films others are waiting to talk about, so you can join with one tap. The chat opens straight away with the film pinned and three spoiler-friendly question cards; either person can tap 🎲 to play a movie game together and come back to the chat afterwards.
 
+## Safety
+- 🚩 **Report** (top right whenever you're connected to someone): pick a reason, add details, optionally block & leave. Reports land in the Supabase table `cinema_club_reports` (insert-only for visitors) with the reported person's recent messages attached. Read them in Supabase → Table editor.
+- **Block & leave** stops you from being matched with that device again.
+
+## Your name
+Tap your name on the home page to choose your emoji and both words yourself, or ↻ for a random one.
+
 ## Mini-games
 | Game | How it works |
 |---|---|
@@ -17,6 +24,10 @@ Just finished a movie? Tap **💬 Talk about a film**, search it, and you're mat
 | 📅 Year Guess | Closest release year wins the round |
 | 🎭 Cast Call | The cast is revealed from the bottom of the billing up |
 | 🔍 Scene Zoom | A film still zooms out from a random spot |
+| 📜 Plot Twist | Guess the film from its synopsis — title words are blacked out |
+| 🎬 Director's Cut | Who directed it? Four names, one is right |
+| 🪪 Who's Who | Name the film from its character names |
+| 🕰️ Timeline | Put four films in release order — one shot |
 
 Matches are first to 3 rounds (max 7). Actor Chain is a single sudden-death duel.
 

@@ -1,9 +1,9 @@
 // Cinema Club — main app: screens, matchmaking, host-authoritative game loop, chat.
-import { NET_MODE, openChannel, LoopChannel } from './net.js';
+import { NET_MODE, openChannel, LoopChannel, fileReport } from './net.js';
 import * as M from './movies.js';
 import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle,
   WIN_TARGET, MAX_ROUNDS, CHAIN_TURN_MS, CHAIN_MAX_USES } from './games.js';
-import { QUESTION_CARDS, FILM_CARDS, randomName, randomAvatar } from './content.js';
+import { QUESTION_CARDS, FILM_CARDS, ADJ, NOUN, AVATARS, randomName, randomAvatar } from './content.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -71,6 +71,9 @@ const MOON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor
 const themeBtn = () => `<button class="iconbtn" data-act="theme" aria-label="${isDark() ? 'Switch to light mode' : 'Switch to dark mode'}" title="${isDark() ? 'Light mode' : 'Dark mode'}">${isDark() ? SUN : MOON}</button>`;
 const leaveBtn = () => `<button class="iconbtn leave" data-act="leavematch" aria-label="Leave match and go home" title="Leave match">✕</button>`;
 const topRight = (...parts) => `<div class="top-r">${parts.join('')}</div>`;
+const FLAG = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>';
+// report is available whenever you're connected to a real person (not the solo bot)
+const reportBtn = () => (S.partner && S.partner.key !== '~bot' ? `<button class="iconbtn report" data-act="report" aria-label="Report ${esc(S.partner.name)}" title="Report">${FLAG}</button>` : '');
 const onlinePill = () => `<span class="online" data-online>${onlineText()}</span>`;
 function onlineText() {
   if (NET_MODE === 'local') return `<b></b>${S.online} online (local test)`;
@@ -98,9 +101,21 @@ const VIEWS = {
   home: () => `
     <header class="top">${logo()}${topRight(onlinePill(), themeBtn())}</header>
     <main class="home">
-      <button class="me-chip" data-act="reroll" title="New nickname">
-        <span class="av">${esc(profile.avatar)}</span><span>${esc(profile.name)}</span><span class="reroll" aria-hidden="true">↻</span>
-      </button>
+      <div class="me-row">
+        <button class="me-chip" data-act="editname" title="Choose your name" aria-expanded="false">
+          <span class="av" data-myav>${esc(profile.avatar)}</span><span data-myname>${esc(profile.name)}</span><span class="reroll" aria-hidden="true">✎</span>
+        </button>
+        <button class="iconbtn" data-act="reroll" title="Random name" aria-label="Random name">↻</button>
+      </div>
+      <form class="name-editor hidden" data-form="name">
+        <p class="eyebrow">Pick your look</p>
+        <div class="avgrid">${AVATARS.map((a) => `<button type="button" class="avopt ${a === profile.avatar ? 'on' : ''}" data-act="pickav" data-a="${a}" aria-label="Avatar ${a}">${a}</button>`).join('')}</div>
+        <div class="namepick">
+          <label><span>First word</span><select name="adj" data-adj>${ADJ.map((a) => `<option ${splitName().adj === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+          <label><span>Second word</span><select name="noun" data-noun>${NOUN.map((n) => `<option ${splitName().noun === n ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+        </div>
+        <div class="row"><button type="button" class="btn" data-act="editname">Cancel</button><button type="submit" class="btn primary">Save name</button></div>
+      </form>
       <h1>Play first.<br><span class="hl">Then talk movies.</span></h1>
       <p class="lede">Get matched with a random film fan, play a quick movie mini-game, and the winner picks two question cards to get the conversation rolling. Just finished a film? Find someone who watched it too.</p>
       <div class="cta">
@@ -116,6 +131,7 @@ const VIEWS = {
           <button class="btn primary" type="submit">Join</button>
         </form>
       </div>
+      <section class="discussing home-disc ${discussingList().length ? '' : 'hidden'}" data-discussing data-hideempty>${discussingHtml()}</section>
       <section class="strip">
         <div class="strip-head"><span>Now showing</span><span>${GAME_IDS.length} mini-games · tap to practise</span></div>
         <div class="games">
@@ -188,7 +204,7 @@ const VIEWS = {
   spin: () => {
     const items = [...GAME_IDS, ...GAME_IDS, ...GAME_IDS, ...GAME_IDS];
     return `
-    <header class="top">${logo()}${topRight(leaveBtn())}</header>
+    <header class="top">${logo()}${topRight(reportBtn(), leaveBtn())}</header>
     <main class="center spin">
       ${vsBar()}
       <p class="eyebrow">Tonight's feature</p>
@@ -209,7 +225,9 @@ const VIEWS = {
       if (m.type === 'emoji') media = `<div class="media emoji">${esc(m.text)}</div>`;
       if (m.type === 'blur') media = `<div class="media poster"><img class="blur" src="${esc(m.src)}" alt="Blurred poster" style="--dur:${r.duration}ms"></div>`;
       if (m.type === 'zoom') media = `<div class="media scene"><img class="zoom" src="${esc(m.src)}" alt="Zoomed film still" style="--dur:${r.duration}ms;transform-origin:${m.fx}% ${m.fy}%"></div>`;
-      if (m.type === 'cast') media = `<div class="media cast">${m.names.map((n, i) => `<div class="cast-row" data-ci="${i}"><span>#${m.names.length - i}</span>${esc(n)}</div>`).join('')}</div>`;
+      if (m.type === 'cast' || m.type === 'chars') media = `<div class="media cast">${m.names.map((n, i) => `<div class="cast-row" data-ci="${i}"><span>${m.type === 'chars' ? '🪪' : '#' + (m.names.length - i)}</span>${esc(n)}</div>`).join('')}</div>`;
+      if (m.type === 'plot') media = `<div class="media plot"><p>${esc(m.text)}</p></div>`;
+      if (m.type === 'poster') media = `<div class="media yearcard">${m.src ? `<img src="${esc(m.src)}" alt="">` : ''}<div class="yt">${esc(m.title)}${m.year ? `<small>${m.year}</small>` : ''}</div></div>`;
       input = `<div class="options">${d.options.map((o, i) => `<button class="opt" data-act="answer" data-v="${i}">${esc(o)}</button>`).join('')}</div>`;
     } else if (r.kind === 'pair') {
       media = `<div class="pair">${d.films.map((f, i) => `
@@ -218,6 +236,13 @@ const VIEWS = {
           <span class="pt">${esc(f.title)}${d.showYear && d.years[i] ? ` <em>(${d.years[i]})</em>` : ''}</span>
           <span class="pv" data-pv="${i}"></span>
         </button>`).join('<span class="or">or</span>')}</div>`;
+    } else if (r.kind === 'order') {
+      media = `<div class="order">${d.films.map((f, i) => `
+        <button class="ocard" data-act="orderpick" data-i="${i}">
+          ${f.poster ? `<img src="${esc(f.poster)}" alt="">` : '<div class="noimg">🎬</div>'}
+          <span class="pt">${esc(f.title)}</span><span class="onum" data-onum="${i}"></span><span class="oyear" data-oy="${i}"></span>
+        </button>`).join('')}</div>`;
+      input = `<div class="row order-actions"><button class="btn" data-act="orderreset">Reset</button><button class="btn primary" data-act="orderlock" disabled>Tap all 4 in order</button></div>`;
     } else if (r.kind === 'year') {
       media = `<div class="media yearcard">${d.poster ? `<img src="${esc(d.poster)}" alt="">` : ''}<div class="yt">${esc(d.title)}</div></div>`;
       input = `<div class="yearpick">
@@ -226,7 +251,7 @@ const VIEWS = {
         <button class="btn primary" data-act="ylock">Lock in</button></div>`;
     }
     return `
-    <header class="top slim">${vsBar()}${leaveBtn()}</header>
+    <header class="top slim">${vsBar()}${reportBtn()}${leaveBtn()}</header>
     <main class="round kind-${r.kind}">
       <div class="round-meta"><span>${GAMES[r.game].icon} ${GAMES[r.game].name}</span><span>Round ${r.n} · first to ${WIN_TARGET}</span></div>
       <div class="timer"><i style="--dur:${r.duration}ms"></i></div>
@@ -238,7 +263,7 @@ const VIEWS = {
   },
 
   chain: () => `
-    <header class="top slim">${vsBar()}${leaveBtn()}</header>
+    <header class="top slim">${vsBar()}${reportBtn()}${leaveBtn()}</header>
     <main class="chain">
       <div class="round-meta"><span>🔗 Actor Chain</span><span>actors can be used ${CHAIN_MAX_USES}×</span></div>
       <div class="timer"><i data-ctimer></i></div>
@@ -258,7 +283,7 @@ const VIEWS = {
     const title = !m.winner ? "It's a draw!" : iWon ? 'You win! 🏆' : `${esc(S.partner.name)} wins`;
     const oppScore = m.scores[S.partner.key] ?? 0;
     return `
-    <header class="top">${logo()}${topRight(leaveBtn())}</header>
+    <header class="top">${logo()}${topRight(reportBtn(), leaveBtn())}</header>
     <main class="center end">
       <p class="eyebrow">${GAMES[m.game].icon} ${GAMES[m.game].name}</p>
       <h2 class="big">${title}</h2>
@@ -291,7 +316,7 @@ const VIEWS = {
     const head = c.picker === 'both' ? 'Draw — pick one question each'
       : need ? 'You won — pick 2 questions' : `${esc(S.partner.name)} is picking 2 questions…`;
     return `
-    <header class="top slim">${vsBar()}${leaveBtn()}</header>
+    <header class="top slim">${vsBar()}${reportBtn()}${leaveBtn()}</header>
     <main class="cards">
       <h2>${head}</h2>
       <p class="muted">${need ? 'These will be pinned at the top of your chat.' : 'Get ready to answer them.'}</p>
@@ -308,7 +333,7 @@ const VIEWS = {
       <div class="chat-actions">
         <button class="btn small gold" data-act="rematch" ${S.partnerGone ? 'disabled' : ''} title="Play a movie game together">🎲<span class="lbl"> ${S.roomKind === 'film' ? 'Play a game' : 'Another game'}</span></button>
         <button class="btn small" data-act="menu" aria-label="More">⋯</button>
-        ${leaveBtn()}
+        ${reportBtn()}${leaveBtn()}
       </div>
       <div class="menu hidden" data-menu>
         <button data-act="leave">🏠 Leave &amp; go home</button>
@@ -440,7 +465,7 @@ const AFTER = {
 // ---------- round UI ----------
 function startCastReveal() {
   const r = S.round;
-  if (!(r.kind === 'mc' && r.data.media.type === 'cast')) return;
+  if (!(r.kind === 'mc' && ['cast', 'chars'].includes(r.data.media.type))) return;
   const rows = $$('.cast-row');
   const step = Math.floor((r.duration - 3000) / rows.length);
   rows.forEach((row, i) => uiLater(i * step, () => row.classList.add('on')));
@@ -456,11 +481,21 @@ function updateRound() {
       b.disabled = true;
       if (+b.dataset.v === S.myAnswer) b.classList.add('chosen', S.myOk === true ? 'good' : S.myOk === false ? 'bad' : 'pending');
     });
+    if (S.round.kind === 'order') {
+      $$('[data-act="orderpick"],[data-act="orderreset"],[data-act="orderlock"]').forEach((b) => (b.disabled = true));
+      const l = $('[data-act="orderlock"]'); if (l) l.textContent = S.myOk === true ? 'Locked in ✓' : S.myOk === false ? 'Locked in ✗' : 'Locked in';
+    }
     if (S.round.kind === 'year') {
       $$('[data-act="ystep"],[data-act="ylock"],[data-yrange]').forEach((b) => (b.disabled = true));
       const l = $('[data-act="ylock"]'); if (l) l.textContent = `Locked: ${S.myAnswer}`;
     }
   }
+}
+function renderOrder() {
+  $$('[data-onum]').forEach((el) => { const pos = S.orderSel.indexOf(+el.dataset.onum); el.textContent = pos >= 0 ? pos + 1 : ''; });
+  $$('.ocard').forEach((c) => c.classList.toggle('picked', S.orderSel.includes(+c.dataset.i)));
+  const l = $('[data-act="orderlock"]');
+  if (l && S.myAnswer === null) { l.disabled = S.orderSel.length !== 4; l.textContent = S.orderSel.length === 4 ? 'Lock in' : `Tap all 4 in order (${S.orderSel.length}/4)`; }
 }
 function answer(v) {
   if (S.screen !== 'round' || S.myAnswer !== null || S.result) return;
@@ -479,7 +514,13 @@ function showResult() {
   if (r.kind === 'mc') {
     $$('.opt').forEach((b) => { b.disabled = true; if (+b.dataset.v === res.answer) b.classList.add('correct'); });
     if (r.data.media.type === 'cast') $$('.cast-row').forEach((x) => x.classList.add('on'));
-    if (res.reveal.poster && r.data.media.type !== 'blur') st.insertAdjacentHTML('beforeend', `<img class="reveal-poster" src="${esc(res.reveal.poster)}" alt="">`);
+    if (res.reveal.poster && !['blur', 'poster'].includes(r.data.media.type)) st.insertAdjacentHTML('beforeend', `<img class="reveal-poster" src="${esc(res.reveal.poster)}" alt="">`);
+  }
+  if (r.kind === 'order') {
+    $$('.ocard').forEach((c) => { c.disabled = true; const i = +c.dataset.i; const pos = res.answer.indexOf(i);
+      const el = $(`[data-onum="${i}"]`); if (el) el.textContent = pos + 1;
+      const y = $(`[data-oy="${i}"]`); if (y) y.textContent = res.reveal.years[i];
+      if (Array.isArray(S.myAnswer)) c.classList.add(S.myAnswer[pos] === i ? 'good' : 'bad'); });
   }
   if (r.kind === 'pair') {
     $$('.pcard').forEach((b) => { b.disabled = true; if (+b.dataset.v === res.answer) b.classList.add('correct'); });
@@ -489,6 +530,8 @@ function showResult() {
   if (r.kind === 'year') {
     const parts = Object.entries(res.answers).map(([k, a]) => `${k === myId ? 'You' : esc(S.partner.name)}: <b>${a.value}</b>`);
     line = `Released <b>${res.reveal.year}</b>${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+  } else if (r.kind === 'order') {
+    line = esc(res.reveal.line);
   } else {
     line = `${esc(res.reveal.title)}${res.reveal.year ? ` <span class="muted">(${res.reveal.year})</span>` : ''}`;
   }
@@ -584,7 +627,17 @@ function discussingHtml() {
     + (rows.length ? rows.map((e) => `<button class="disc" data-act="joinfilm" data-id="${esc(e.film.id)}">${e.film.poster ? `<img src="${esc(e.film.poster)}" alt="">` : '<span class="noimg">🎬</span>'}<span><b>${esc(e.film.title)}</b> <em>${esc(e.film.year || '')}</em><small>${e.n} waiting to talk</small></span><span class="go">Join →</span></button>`).join('')
       : `<p class="muted small">${S.screen === 'filmsearching' || (S.searching && S.searchKind === 'film') ? 'No other films are being discussed right now.' : 'Nobody else is waiting right now. Pick your film and you\'ll be first in line.'}</p>`);
 }
-function updateDiscussing() { const el = $('[data-discussing]'); if (el) el.innerHTML = discussingHtml(); }
+function updateDiscussing() {
+  const el = $('[data-discussing]');
+  if (!el) return;
+  el.innerHTML = discussingHtml();
+  if ('hideempty' in el.dataset) el.classList.toggle('hidden', !discussingList().length);
+}
+function splitName() {
+  const adj = ADJ.find((a) => profile.name.startsWith(a + ' ')) || ADJ[0];
+  const noun = NOUN.find((n) => profile.name === `${adj} ${n}`) || NOUN[0];
+  return { adj, noun };
+}
 function seededPick(arr, seed, n) {
   let h = 2166136261; for (const c of String(seed)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
   const a = arr.slice();
@@ -795,7 +848,7 @@ function handle(m) {
       go('spin');
       break;
     case 'round':
-      S.round = m; S.myAnswer = null; S.myOk = null; S.locks = {}; S.result = null; S.scores = m.scores;
+      S.round = m; S.myAnswer = null; S.myOk = null; S.locks = {}; S.result = null; S.scores = m.scores; S.orderSel = [];
       S.roundStart = performance.now() + (m.delay || 0);
       go('round');
       break;
@@ -897,23 +950,32 @@ async function hostNextRound() {
   H.secret = { n: H.n, answer: r.answer };
   const delay = 1500;
   bcast({ t: 'round', n: H.n, game: H.game, kind: r.kind, data: r.data, duration: r.duration, delay, scores: { ...H.scores } });
-  hLater(delay + r.duration + 900, hostResolve);
+  const n = H.n;
+  hLater(delay + r.duration + 900, () => hostResolve(n));
 }
 function hostAnswer(who, value, elapsed, n) {
   const H = S.h;
   if (!H || !H.round || H.resolved || n !== H.n || H.answers[who] || !(who in H.scores)) return;
   const r = H.round;
-  const v = Number(value);
-  if (!Number.isFinite(v)) return;
-  const ok = r.kind === 'year' ? null : v === r.answer;
+  let v, ok;
+  if (r.kind === 'order') {
+    if (!Array.isArray(value) || value.length !== 4) return;
+    v = value.map(Number);
+    if (new Set(v).size !== 4 || v.some((x) => !(x >= 0 && x < 4))) return;
+    ok = v.every((x, i) => x === r.answer[i]);
+  } else {
+    v = Number(value);
+    if (!Number.isFinite(v)) return;
+    ok = r.kind === 'year' ? null : v === r.answer;
+  }
   H.answers[who] = { value: v, elapsed: Math.max(0, Number(elapsed) || 0), ok };
   bcast({ t: 'lock', n, who, ok });
   if (Object.keys(H.scores).every((k) => H.answers[k])) return hostResolve();
-  if (ok && !H.grace) H.grace = hLater(700, hostResolve);
+  if (ok && !H.grace) H.grace = hLater(700, () => hostResolve(n));
 }
-function hostResolve() {
+function hostResolve(n) {
   const H = S.h;
-  if (!H || H.resolved) return;
+  if (!H || H.resolved || (n !== undefined && n !== H.n)) return; // ignore timers left over from an earlier round
   H.resolved = true;
   const r = H.round;
   const ents = Object.entries(H.answers);
@@ -1018,9 +1080,79 @@ function acceptRematch() {
   if (S.isHost) hostStartMatch(); else send({ t: 'rematch_ok' });
 }
 
+// ---------- report ----------
+const REPORT_REASONS = ['Harassment or insults', 'Sexual content', 'Hate speech', 'Spam or scam', 'Seems to be under 18', 'Something else'];
+function openReport() {
+  if (!S.partner || S.partner.key === '~bot' || $('#modal')) return;
+  const p = S.partner;
+  const wrap = document.createElement('div');
+  wrap.id = 'modal';
+  wrap.innerHTML = `
+    <form class="sheet" data-report role="dialog" aria-modal="true" aria-labelledby="rep-h">
+      <h3 id="rep-h">Report ${esc(p.avatar)} ${esc(p.name)}</h3>
+      <p class="muted small">What happened? Reports are reviewed by the Cinema Club team. Your recent chat with this person is attached.</p>
+      <div class="reasons">${REPORT_REASONS.map((r, i) => `<label class="reason"><input type="radio" name="reason" value="${esc(r)}" ${i === 0 ? '' : ''}><span>${esc(r)}</span></label>`).join('')}</div>
+      <textarea name="details" maxlength="500" rows="3" placeholder="Anything else we should know? (optional)"></textarea>
+      <label class="check"><input type="checkbox" name="block" checked><span>Also block &amp; leave — you won't be matched again</span></label>
+      <div class="row"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" disabled>Send report</button></div>
+    </form>`;
+  document.body.appendChild(wrap);
+  const form = wrap.querySelector('form');
+  form.addEventListener('change', () => { form.querySelector('[type=submit]').disabled = !form.reason.value; });
+  wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-close]')) closeReport(); });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const theirs = S.messages.filter((m) => !m.sys && m.from === p.key).slice(-15).map((m) => `${p.name}: ${m.text}`);
+    const mine = S.messages.filter((m) => !m.sys && m.from === myId).slice(-5).map((m) => `reporter: ${m.text}`);
+    const context = [`room: ${S.roomKind}${S.film ? ` · film: ${S.film.title}` : ''}${S.game ? ` · game: ${S.game}` : ''}`, ...theirs, ...mine].join('\n').slice(0, 4000);
+    try {
+      await fileReport({
+        reason: form.reason.value, details: form.details.value.trim().slice(0, 500) || null,
+        reported_name: String(p.name || '').slice(0, 60), reported_device: String(p.dev || '').slice(0, 40),
+        reporter_name: profile.name.slice(0, 60), reporter_device: profile.dev.slice(0, 40),
+        room: String(S.roomCode || '').slice(0, 80), context,
+      });
+      const block = form.block.checked;
+      closeReport();
+      if (block) ACT.block(); else toast('Thanks — your report was sent');
+      if (block) toast('Report sent. Blocked — you won’t be matched again');
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false; btn.textContent = 'Send report';
+      toast('Could not send the report — try again');
+    }
+  });
+  setTimeout(() => { const first = form.querySelector('input[name=reason]'); if (first) first.focus(); }, 30);
+}
+function closeReport() { const m = $('#modal'); if (m) m.remove(); }
+
 // ---------- actions ----------
 const ACT = {
   reroll() { profile.name = randomName(); profile.avatar = randomAvatar(); save('profile', profile); trackLobby(); go('home'); },
+  editname() {
+    const f = $('[data-form="name"]');
+    const open = f.classList.toggle('hidden') === false;
+    $('[data-act="editname"].me-chip').setAttribute('aria-expanded', String(open));
+    if (!open) { $('[data-myav]').textContent = profile.avatar; $('[data-myname]').textContent = profile.name; }
+    else S.draftAv = profile.avatar;
+  },
+  pickav(el) {
+    S.draftAv = el.dataset.a;
+    $$('.avopt').forEach((b) => b.classList.toggle('on', b === el));
+    $('[data-myav]').textContent = S.draftAv;
+  },
+  orderpick(el) {
+    if (S.myAnswer !== null) return;
+    const i = +el.dataset.i;
+    if (S.orderSel.includes(i)) S.orderSel = S.orderSel.filter((x) => x !== i);
+    else if (S.orderSel.length < 4) S.orderSel.push(i);
+    renderOrder();
+  },
+  orderreset() { S.orderSel = []; renderOrder(); },
+  orderlock() { if (S.orderSel.length === 4) answer(S.orderSel.slice()); },
+  report() { openReport(); },
   match() { startSearch(); },
   filmpick() { stopSearch(); leaveRoom(); go('filmpick'); },
   pickfilm(el) {
@@ -1146,6 +1278,15 @@ app.addEventListener('submit', (e) => {
     pushMsg({ from: myId, text });
     send({ t: 'chat', text, ts: Date.now() });
   }
+  if (f.dataset.form === 'name') {
+    profile.name = `${f.adj.value} ${f.noun.value}`;
+    profile.avatar = S.draftAv || profile.avatar;
+    save('profile', profile);
+    trackLobby();
+    toast(`You're now ${profile.avatar} ${profile.name}`);
+    go('home');
+    return;
+  }
   if (f.dataset.form === 'film') {
     const first = $('[data-fresults] .cres');
     if (first) first.click();
@@ -1155,8 +1296,13 @@ app.addEventListener('submit', (e) => {
     if (first) first.click();
   }
 });
+app.addEventListener('change', (e) => {
+  const f = e.target.closest('[data-form="name"]');
+  if (f) $('[data-myname]').textContent = `${f.adj.value} ${f.noun.value}`;
+});
 document.addEventListener('keydown', (e) => {
-  if (S.screen === 'round' && S.round && S.round.kind !== 'year' && /^[1-4]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
+  if (e.key === 'Escape' && $('#modal')) closeReport();
+  if (S.screen === 'round' && S.round && !['year', 'order'].includes(S.round.kind) && /^[1-4]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
     const v = +e.key - 1;
     if ($(`[data-act="answer"][data-v="${v}"]`)) answer(v);
   }

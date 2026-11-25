@@ -126,6 +126,14 @@ export class LoopChannel extends Base {
   async leave() { this.closed = true; }
 }
 
+// Reports go into the insert-only table public.cinema_club_reports (read them in the Supabase dashboard).
+export async function fileReport(row) {
+  if (NET_MODE === 'local') { console.info('[report]', row); return; }
+  const sb = await supabase();
+  const { error } = await sb.from('cinema_club_reports').insert(row);
+  if (error) throw error;
+}
+
 export function openChannel(name, key) {
   return NET_MODE === 'local' ? new LocalChannel(name, key) : new SupaChannel(name, key);
 }

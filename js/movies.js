@@ -102,13 +102,15 @@ export async function getPool() {
 export async function getDetails(id) {
   if (DEMO_BY_ID.has(id)) {
     const m = DEMO_BY_ID.get(id);
-    return { ...strip(m), runtime: m.runtime, cast: m.cast };
+    return { ...strip(m), runtime: m.runtime, cast: m.cast, overview: '', directors: [] };
   }
   const d = await api(`/movie/${id}`, { append_to_response: 'credits', language: 'en-US' });
   return {
     ...norm(d),
     runtime: d.runtime || 0,
-    cast: ((d.credits && d.credits.cast) || []).slice(0, 40).map((c) => ({ id: c.id, name: c.name, order: c.order })),
+    overview: d.overview || '',
+    cast: ((d.credits && d.credits.cast) || []).slice(0, 40).map((c) => ({ id: c.id, name: c.name, order: c.order, character: c.character || '' })),
+    directors: ((d.credits && d.credits.crew) || []).filter((c) => c.job === 'Director').map((c) => c.name),
   };
 }
 
