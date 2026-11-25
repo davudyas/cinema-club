@@ -609,6 +609,11 @@ html[data-bg="1"] #app[data-screen=home] .belt[data-belt=bottom] { margin-top: 2
 .cpin.l { left: max(12px, calc((100vw - 1184px) / 4 - 64px)); }
 .cpin.r { right: max(12px, calc((100vw - 1184px) / 4 - 64px)); }
 @media (max-width: 1479px) { html[data-bg="3"] .cpin { display: none; } }
+/* game, chat and other single-column screens: the column is only 600px, so the pins fit on laptops too */
+html[data-bg="3"].not-home .cpin.l { left: max(10px, calc((100vw - 600px) / 4 - 64px)); }
+html[data-bg="3"].not-home .cpin.r { right: max(10px, calc((100vw - 600px) / 4 - 64px)); }
+@media (min-width: 960px) { html[data-bg="3"].not-home .cpin { display: block; } }
+@media (min-width: 960px) and (max-width: 1199px) { html[data-bg="3"].not-home .cpin { width: 108px; padding: 6px 6px 18px; } }
 @media (max-width: 1479px) { html[data-bg="3"] #app[data-screen=home] .belt[data-belt=top] { display: block; } }
 .pinrow { display: flex; justify-content: center; gap: 14px; padding: 14px 0 4px; }
 .pinrow img { width: 82px; background: #fff; padding: 5px 5px 14px; border-radius: 2px; box-shadow: 0 8px 18px rgba(0, 0, 0, .22); }

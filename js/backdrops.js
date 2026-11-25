@@ -28,7 +28,7 @@ function posters(n, size = 'w185', offset = 0) {
   let out = '';
   for (let i = 0; i < n; i++) {
     const f = films[(i + offset) % films.length];
-    out += `<img src="${esc(sized(f.poster, size))}" alt="" decoding="async"${n > 10 ? ' loading="lazy"' : ' fetchpriority="high"'}>`;
+    out += `<img data-fid="${esc(f.id)}" src="${esc(sized(f.poster, size))}" alt="" decoding="async"${n > 10 ? ' loading="lazy"' : ' fetchpriority="high"'}>`;
   }
   return out;
 }
@@ -60,6 +60,22 @@ export function applyBg(v) {
   if (!fx) { fx = document.createElement('div'); fx.id = 'bgfx'; fx.setAttribute('aria-hidden', 'true'); document.body.prepend(fx); }
   fx.innerHTML = BUILD[current] ? BUILD[current]() : '';
   decorate();
+}
+
+// During a game the corkboard stays up, so no pinned poster may show a film from the current round
+// (that would give answers away). `inPlay` = { ids:Set, titles:Set (lowercase) }.
+export function guardPins(inPlay) {
+  if (current !== '3' || !films.length) return;
+  const banned = (f) => inPlay.ids.has(String(f.id)) || inPlay.titles.has(String(f.title || '').toLowerCase());
+  const imgs = [...document.querySelectorAll('#bgfx .cpin img')];
+  const shown = new Set(imgs.map((im) => im.dataset.fid));
+  for (const im of imgs) {
+    const f = films.find((x) => String(x.id) === im.dataset.fid);
+    if (f && !banned(f)) { im.parentElement.style.visibility = ''; continue; }
+    const alt = films.find((x) => !banned(x) && !shown.has(String(x.id)));
+    if (alt) { shown.add(String(alt.id)); im.dataset.fid = alt.id; im.src = sized(alt.poster, 'w342'); im.parentElement.style.visibility = ''; }
+    else im.parentElement.style.visibility = 'hidden';
+  }
 }
 
 // fill the in-page pieces (strips, hero still) — called after every home render

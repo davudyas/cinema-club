@@ -2,7 +2,7 @@
 import { NET_MODE, openChannel, LoopChannel, fileReport } from './net.js';
 import { filterText } from './filter.js';
 import { sfx, buzz, unlock, soundOn, setSound } from './sound.js';
-import { BG_NAMES, applyBg, setFilms, decorate, bgActive } from './backdrops.js';
+import { BG_NAMES, applyBg, setFilms, decorate, bgActive, guardPins } from './backdrops.js';
 import * as M from './movies.js';
 import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle, seededRng, hashString,
   WIN_TARGET, MAX_ROUNDS, CHAIN_TURN_MS, CHAIN_MAX_USES } from './games.js';
@@ -100,9 +100,26 @@ function updatePosterWall(screen) {
   const w = $('#posterwall');
   if (w) w.classList.toggle('off', WALL_OFF.includes(screen));
   const fx = $('#bgfx');
-  if (fx) fx.classList.toggle('off', WALL_OFF.includes(screen));
+  const keep = bgActive() === '3'; // the corkboard stays on game and chat screens too
+  if (fx) fx.classList.toggle('off', WALL_OFF.includes(screen) && !keep);
   document.documentElement.classList.toggle('in-game', WALL_OFF.includes(screen));
+  document.documentElement.classList.toggle('not-home', screen !== 'home');
   if (screen === 'home') decorate();
+  if (keep) guardPins(filmsInPlay());
+}
+// every film id/title in the current round or chain — pinned posters must not show these
+function filmsInPlay() {
+  const ids = new Set(), titles = new Set();
+  const walk = (v, d) => {
+    if (!v || d > 6) return;
+    if (typeof v === 'string') { titles.add(v.toLowerCase()); return; }
+    if (typeof v !== 'object') return;
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, d + 1)); return; }
+    if (v.id != null) ids.add(String(v.id));
+    Object.values(v).forEach((x) => walk(x, d + 1));
+  };
+  walk(S.round, 0); walk(S.chain, 0); walk(S.result, 0);
+  return { ids, titles };
 }
 async function buildPosterWall() {
   try {
@@ -999,14 +1016,26 @@ async function connectLobby() {
 function trackLobby() {
   if (!S.lobby || S.lobbyOk === false) return;
   return S.lobby.track({
-    mode: S.searching ? 'waiting' : 'idle', since: S.searchSince, kind: S.searchKind,
-    film: S.searching && S.searchKind === 'film' && S.film ? { id: S.film.id, title: S.film.title, year: S.film.year, poster: S.film.poster } : null,
+    // 'paired' = I picked a partner and am waiting for them in our room. It must stay visible in the lobby
+    // until they arrive, otherwise the other person never learns they were picked (both searched at once).
+    mode: S.pairedWith ? 'paired' : S.searching ? 'waiting' : 'idle', with: S.pairedWith || null, since: S.searchSince, kind: S.searchKind,
+    film: (S.searching || S.pairedWith) && S.searchKind === 'film' && S.film ? { id: S.film.id, title: S.film.title, year: S.film.year, poster: S.film.poster } : null,
     name: profile.name, avatar: profile.avatar, dev: profile.dev, blocks: profile.blocks.slice(-50),
   });
 }
 const compatible = (a, b) => !(a.blocks || []).includes(b.dev) && !(b.blocks || []).includes(a.dev) && (NET_MODE === 'local' || a.dev !== b.dev);
 function tryPair(peers) {
   const sameQueue = (p) => (p.kind || 'game') === S.searchKind && (S.searchKind !== 'film' || (p.film && S.film && p.film.id === S.film.id));
+  const me = peers.find((p) => p.key === myId);
+  // Someone already picked me and is waiting in our room — go there.
+  const invite = peers.filter((p) => p.mode === 'paired' && p.with === myId && sameQueue(p) && (!me || compatible(me, p)))
+    .sort((a, b) => (a.since - b.since) || (a.key < b.key ? -1 : 1))[0];
+  if (invite) {
+    S.pairing = true;
+    const filmI = S.searchKind === 'film';
+    joinRoom((filmI ? 'f-' : 'm-') + [myId, invite.key].sort().join('-'), filmI ? 'film' : 'match', invite.key);
+    return;
+  }
   const w = peers.filter((p) => p.mode === 'waiting' && sameQueue(p)).sort((a, b) => (a.since - b.since) || (a.key < b.key ? -1 : 1));
   const used = new Set();
   let partner = null;
@@ -1056,6 +1085,7 @@ async function leaveRoom(silent) {
   hostStop();
   const ch = S.room;
   S.room = null;
+  if (S.pairedWith) { S.pairedWith = null; if (!S.searching) trackLobby(); }
   if (ch) { if (!silent) { try { ch.send({ t: 'bye', from: myId }); } catch (e) { /* closed */ } } await ch.leave(); }
 }
 async function joinRoom(code, kind, expectKey) {
@@ -1063,7 +1093,7 @@ async function joinRoom(code, kind, expectKey) {
   await leaveRoom(true);
   resetMatch();
   S.roomCode = code; S.roomKind = kind; S.expect = expectKey || null;
-  if (kind === 'match' || kind === 'film') { S.searching = false; trackLobby(); }
+  if (kind === 'match' || kind === 'film') { S.searching = false; S.pairedWith = expectKey || null; trackLobby(); }
   const ch = openChannel('room-' + code, myId);
   S.room = ch;
   ch.onSync((peers) => onRoomPeers(ch, peers));
@@ -1098,6 +1128,7 @@ function onRoomPeers(ch, peers) {
     S.scores = { [myId]: 0, [p.key]: 0 };
     sfx('match'); buzz([80, 50, 80]); alertTitle('🎟️ Match found!');
     clearTimeout(S.pairTimer); S.pairing = false;
+    if (S.pairedWith) { S.pairedWith = null; trackLobby(); }
     if (S.roomKind === 'friends') history.replaceState(null, '', location.pathname + (NET_MODE === 'local' ? '?net=local' : ''));
     if (S.roomKind === 'film') {
       S.filmPins = seededPick(FILM_CARDS, S.roomCode, 3);
