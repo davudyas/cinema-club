@@ -28,7 +28,7 @@ function posters(n, size = 'w185', offset = 0) {
   let out = '';
   for (let i = 0; i < n; i++) {
     const f = films[(i + offset) % films.length];
-    out += `<img src="${esc(sized(f.poster, size))}" alt="" decoding="async" loading="lazy">`;
+    out += `<img src="${esc(sized(f.poster, size))}" alt="" decoding="async"${n > 10 ? ' loading="lazy"' : ' fetchpriority="high"'}>`;
   }
   return out;
 }
