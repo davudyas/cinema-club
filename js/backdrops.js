@@ -9,8 +9,15 @@ const PANELS = ['5', '6', '7', '8', '9', '10']; // designs where content sits on
 let films = [];
 let current = '';
 let heroFilm = null;
+// Every visit shows different posters: skip the ones shown last time (remembered on this device).
 export function setFilms(list) {
-  films = (list || []).filter((f) => f.poster);
+  let all = (list || []).filter((f) => f.poster);
+  let last = [];
+  try { last = JSON.parse(localStorage.getItem('cinemaclub:lastposters') || '[]'); } catch (e) { /* private mode */ }
+  const fresh = all.filter((f) => !last.includes(f.id));
+  if (fresh.length >= 12) all = fresh;
+  films = all;
+  try { localStorage.setItem('cinemaclub:lastposters', JSON.stringify(films.slice(0, 24).map((f) => f.id))); } catch (e) { /* private mode */ }
   heroFilm = (list || []).find((f) => f.backdrop) || null;
   if (current) applyBg(current);
 }
@@ -26,6 +33,7 @@ function posters(n, size = 'w185', offset = 0) {
   return out;
 }
 
+const jitter = () => Math.round((Math.random() - 0.5) * 6);
 const PINS = [ // corkboard positions in the side margins
   { s: 'l', t: 9, r: -7 }, { s: 'l', t: 33, r: 5 }, { s: 'l', t: 57, r: -4 }, { s: 'l', t: 80, r: 8 },
   { s: 'r', t: 6, r: 6 }, { s: 'r', t: 30, r: -6 }, { s: 'r', t: 54, r: 4 }, { s: 'r', t: 78, r: -8 },
@@ -34,7 +42,7 @@ const PINS = [ // corkboard positions in the side margins
 const BUILD = {
   2: () => `<div class="fstrip l"><div class="fs-track">${posters(10)}${posters(10)}</div></div>
             <div class="fstrip r"><div class="fs-track">${posters(10, 'w185', 10)}${posters(10, 'w185', 10)}</div></div>`,
-  3: () => PINS.map((p, i) => `<figure class="cpin ${p.s}" style="top:${p.t}%;--r:${p.r}deg">${posters(1, 'w185', i * 3)}<i></i></figure>`).join(''),
+  3: () => PINS.map((p, i) => `<figure class="cpin ${p.s}" style="top:${p.t + jitter() / 2}%;--r:${p.r + jitter()}deg">${posters(1, 'w342', i)}<i></i></figure>`).join(''),
   5: () => '<div class="curtain l"></div><div class="curtain r"></div><div class="valance"></div>',
   6: () => `<div class="pgrid6">${posters(54)}</div>`,
   7: () => `<div class="lampwrap"><div class="pgrid6">${posters(54)}</div></div>`,
@@ -59,7 +67,7 @@ export function decorate() {
   const top = document.querySelector('[data-belt="top"]');
   const bottom = document.querySelector('[data-belt="bottom"]');
   if (top) top.innerHTML = ['1', '2'].includes(current) ? `<div class="belt-track">${posters(16)}${posters(16)}</div>`
-    : current === '3' ? `<div class="pinrow">${posters(3, 'w185', 2)}</div>` : '';
+    : current === '3' ? `<div class="pinrow">${posters(3, 'w185', 0)}</div>` : '';
   if (bottom) bottom.innerHTML = current === '1' ? `<div class="belt-track rev">${posters(16, 'w185', 16)}${posters(16, 'w185', 16)}</div>` : '';
   const hero = document.querySelector('[data-herobg]');
   if (hero) hero.innerHTML = current === '4' && heroFilm

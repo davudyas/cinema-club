@@ -1,6 +1,6 @@
 // Cinema Club service worker: network-first for the site's own files, so updates show up right away,
 // with the last good copy as an offline fallback. Movie data, matchmaking and chat always go to the network.
-const CACHE = 'cinemaclub-v6';
+const CACHE = 'cinemaclub-v7';
 const SHELL = ['/', '/index.html', '/css/style.css', '/css/fonts.css', '/js/app.js', '/js/config.js', '/js/content.js', '/js/demo-data.js',
   '/js/filter.js', '/js/games.js', '/js/movies.js', '/js/net.js', '/js/sound.js', '/js/backdrops.js', '/assets/icon-192.png', '/assets/tmdb-logo.svg'];
 

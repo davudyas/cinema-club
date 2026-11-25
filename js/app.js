@@ -110,6 +110,7 @@ async function buildPosterWall() {
     if ((await M.detectMode()) !== 'tmdb' || $('#posterwall')) return;
     const films = await M.getPool();
     setFilms(films);
+    if (bgActive()) return; // a background design is active — the faded wall isn't needed
     const urls = [...new Set(films.map((f) => f.poster).filter(Boolean))].slice(0, 36).map((u) => u.replace('/w342/', '/w154/'));
     if (urls.length < 12) return;
     while (urls.length < 36) urls.push(...urls.slice(0, 36 - urls.length));
@@ -124,13 +125,13 @@ async function buildPosterWall() {
   } catch (e) { /* the wall is decoration only */ }
 }
 
-// Background design preview: open the site with ?preview=bg (or ?bg=1..10)
+// Background design: the corkboard (3) by default. ?bg=1..10 or ?preview=bg still let you compare designs.
+const DEFAULT_BG = '3';
 (function bgPreview() {
   const q = new URLSearchParams(location.search);
   const pick = q.get('bg');
-  let cur = pick && /^(10|[1-9])$/.test(pick) ? pick : '';
-  if (q.get('preview') === 'bg' && !cur) cur = '1';
-  if (cur) applyBg(cur);
+  const cur = pick && /^(10|[1-9])$/.test(pick) ? pick : DEFAULT_BG;
+  applyBg(cur);
   if (q.get('preview') !== 'bg') return;
   const bar = document.createElement('div');
   bar.id = 'wallpick';
