@@ -544,44 +544,138 @@ html { overflow-x: clip; }
 .foot { border-top-style: solid; border-top-color: var(--line); }
 .foot .link, .tmdb { color: var(--ink-2); }
 
-/* ---------- poster wall design options (html[data-wall]) ---------- */
-/* 1 · Soft veil: same wall, calmer everywhere */
-html[data-wall="1"] .pw-grid img.in { opacity: .3; }
-html[data-wall="1"] #posterwall::after { background: color-mix(in srgb, var(--paper) 72%, transparent); }
-
-/* 2 · Side lights: posters only at the edges, a clean column in the middle */
-html[data-wall="2"] .pw-grid img.in { opacity: .6; }
-html[data-wall="2"] #posterwall::after { background: linear-gradient(90deg,
-  color-mix(in srgb, var(--paper) 20%, transparent) 0%, var(--paper) 22%, var(--paper) 78%, color-mix(in srgb, var(--paper) 20%, transparent) 100%); }
-@media (max-width: 960px) { html[data-wall="2"] #posterwall::after { background: linear-gradient(180deg,
-  color-mix(in srgb, var(--paper) 35%, transparent) 0%, var(--paper) 30%, var(--paper) 100%); } }
-
-/* 3 · Frosted glass: clearer posters, content on frosted panels */
-html[data-wall="3"] .pw-grid img.in { opacity: .6; }
-html[data-wall="3"] #posterwall::after { background: color-mix(in srgb, var(--paper) 30%, transparent); }
-html[data-wall="3"] .home-l, html[data-wall="3"] .home-r, html[data-wall="3"] .filmpick, html[data-wall="3"] .center:not(.spin) {
-  background: color-mix(in srgb, var(--paper) 74%, transparent); backdrop-filter: blur(16px) saturate(1.15); -webkit-backdrop-filter: blur(16px) saturate(1.15);
-  border: 1.5px solid color-mix(in srgb, var(--edge) 18%, transparent); border-radius: 26px; padding: 22px; }
-html[data-wall="3"] .home { padding-top: 14px; }
-html[data-wall="3"] .center:not(.spin) { margin: 16px 0 24px; }
-@media (max-width: 959px) { html[data-wall="3"] .home-r { margin-top: 14px; } }
-
-/* 4 · Duotone: posters tinted in the brand colours, like a printed cinema bill */
-html[data-wall="4"] .pw-grid img { filter: grayscale(1) contrast(1.15) brightness(1.05); }
-html[data-wall="4"] .pw-grid img.in { opacity: .5; }
-html[data-wall="4"] #posterwall::before { content: ''; position: absolute; inset: 0; background: var(--red); mix-blend-mode: color; opacity: .75; z-index: 1; }
-html[data-wall="4"] #posterwall::after { z-index: 2; background: color-mix(in srgb, var(--paper) 70%, transparent); }
-
-/* 5 · Ambient glow: posters blurred into soft colour, no shapes behind text */
-html[data-wall="5"] .pw-grid img { filter: blur(14px) saturate(1.35); }
-html[data-wall="5"] .pw-grid img.in { opacity: .75; }
-html[data-wall="5"] #posterwall::after { background: color-mix(in srgb, var(--paper) 55%, transparent); }
-:root[data-theme=dark][data-wall="5"] #posterwall::after { background: color-mix(in srgb, var(--paper) 62%, transparent); }
-
-/* preview switcher (only with ?preview=wall) */
+/* preview switcher (only with ?preview=bg) */
 #wallpick { position: fixed; z-index: 70; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center;
   background: var(--ink); color: var(--paper); padding: 8px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); max-width: calc(100% - 20px); font-size: 13px; font-weight: 700; }
 #wallpick span { padding: 0 6px; opacity: .8; }
 #wallpick button { border: 0; border-radius: 10px; padding: 8px 11px; font-weight: 800; font-size: 13px; background: color-mix(in srgb, var(--paper) 14%, transparent); color: var(--paper); }
 #wallpick button.on { background: var(--gold); color: #17140F; }
 @media (min-width: 960px) { #wallpick { top: 12px; bottom: auto; } }
+
+/* ======================================================================
+   Background designs — html[data-bg="1".."10"]
+   ====================================================================== */
+#app { position: relative; }
+#bgfx { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; display: none; }
+html[data-bg] #bgfx { display: block; }
+html[data-bg] #bgfx.off { display: none; }
+html[data-bg] #posterwall { display: none; }
+#bgfx img, .belt img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: #2a2622; }
+.belt, .herobg { display: none; }
+@media (prefers-reduced-motion: reduce) { .belt-track, .fs-track { animation: none !important; } }
+
+/* content on solid cards (designs 5–10) */
+html[data-bg-panels]:not(.in-game) .home-l, html[data-bg-panels]:not(.in-game) .home-r,
+html[data-bg-panels]:not(.in-game) main.center, html[data-bg-panels]:not(.in-game) main.filmpick {
+  background: var(--paper); border: 2px solid var(--edge); border-radius: 26px; padding: 22px;
+  box-shadow: 0 8px 0 var(--shadow), 0 24px 60px rgba(0, 0, 0, .3); }
+html[data-bg-panels]:not(.in-game) main.center { margin: 14px 0 28px; }
+html[data-bg-panels]:not(.in-game) .home { padding-top: 14px; }
+@media (max-width: 959px) { html[data-bg-panels]:not(.in-game) .home-r { margin-top: 16px; } }
+html[data-bg-panels]:not(.in-game) .top { position: relative; }
+html[data-bg-panels]:not(.in-game) .top::before { content: ''; position: absolute; inset: 0 -50vw; z-index: -1; background: var(--paper); border-bottom: 2px solid var(--edge); }
+
+/* 1 · Marquee strips — two full-colour poster reels */
+html[data-bg="1"] #app[data-screen=home] .belt, html[data-bg="2"] #app[data-screen=home] .belt[data-belt=top] {
+  display: block; width: 100vw; margin-left: calc(50% - 50vw); overflow: hidden; background: #17140F; padding: 16px 0; position: relative; }
+.belt::before, .belt::after { content: ''; position: absolute; left: 0; right: 0; height: 9px; z-index: 1;
+  background: repeating-linear-gradient(90deg, transparent 0 10px, #F4EEE2 10px 20px); opacity: .9; }
+.belt::before { top: 3px; } .belt::after { bottom: 3px; }
+.belt-track { display: flex; gap: 10px; width: max-content; animation: beltmove 90s linear infinite; }
+.belt-track.rev { animation-direction: reverse; }
+.belt-track img { width: 96px; flex: none; border-radius: 4px; }
+@keyframes beltmove { to { transform: translateX(-50%); } }
+html[data-bg="1"] #app[data-screen=home] .belt[data-belt=top] { margin-bottom: 10px; }
+html[data-bg="1"] #app[data-screen=home] .belt[data-belt=bottom] { margin-top: 26px; }
+@media (min-width: 960px) { .belt-track img { width: 118px; } }
+
+/* 2 · Filmstrip edges — vertical reels in the side margins (wide screens); a top reel on smaller ones */
+.fstrip { position: absolute; top: 0; height: 100%; width: 118px; background: #17140F; padding: 0 16px; overflow: hidden; }
+.fstrip::before, .fstrip::after { content: ''; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 1;
+  background: repeating-linear-gradient(180deg, transparent 0 9px, #F4EEE2 9px 18px); }
+.fstrip::before { left: 4px; } .fstrip::after { right: 4px; }
+.fstrip.l { left: max(10px, calc((100vw - 1184px) / 2 - 150px)); }
+.fstrip.r { right: max(10px, calc((100vw - 1184px) / 2 - 150px)); }
+.fs-track { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; animation: fsup 110s linear infinite; }
+.fstrip.r .fs-track { animation-direction: reverse; }
+@keyframes fsup { to { transform: translateY(-50%); } }
+@media (min-width: 1480px) { html[data-bg="2"] #app[data-screen=home] .belt { display: none !important; } }
+@media (max-width: 1479px) { html[data-bg="2"] .fstrip { display: none; } }
+
+/* 3 · Corkboard pins — tilted posters with tape in the margins; a row of three on smaller screens */
+.cpin { position: absolute; margin: 0; width: 128px; transform: rotate(var(--r)); background: #fff; padding: 7px 7px 22px; box-shadow: 0 10px 24px rgba(0, 0, 0, .25); }
+.cpin img { border-radius: 2px; }
+.cpin i { position: absolute; top: -10px; left: 50%; width: 64px; height: 22px; transform: translateX(-50%) rotate(-3deg); background: rgba(243, 178, 60, .75); }
+.cpin.l { left: max(12px, calc((100vw - 1184px) / 4 - 64px)); }
+.cpin.r { right: max(12px, calc((100vw - 1184px) / 4 - 64px)); }
+@media (max-width: 1479px) { html[data-bg="3"] .cpin { display: none; } }
+@media (max-width: 1479px) { html[data-bg="3"] #app[data-screen=home] .belt[data-belt=top] { display: block; } }
+.pinrow { display: flex; justify-content: center; gap: 14px; padding: 14px 0 4px; }
+.pinrow img { width: 82px; background: #fff; padding: 5px 5px 14px; border-radius: 2px; box-shadow: 0 8px 18px rgba(0, 0, 0, .22); }
+.pinrow img:nth-child(1) { transform: rotate(-7deg); } .pinrow img:nth-child(2) { transform: rotate(3deg) translateY(-6px); } .pinrow img:nth-child(3) { transform: rotate(8deg); }
+
+/* 4 · Hero still — one big sharp film scene behind the headline */
+html[data-bg="4"] #app[data-screen=home] .herobg { display: block; position: absolute; top: 0; left: 50%; width: 100vw; height: 640px; transform: translateX(-50%); z-index: -1; overflow: hidden; }
+.herobg img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+.herobg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12, 10, 8, .62) 0%, rgba(12, 10, 8, .55) 50%, var(--paper) 100%); }
+.hero-cap { position: absolute; right: 22px; top: 76px; z-index: 1; color: #fff; font: 500 12px var(--mono); opacity: .85; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+html[data-bg="4"] #app[data-screen=home] .top .logo, html[data-bg="4"] #app[data-screen=home] .home-l h1, html[data-bg="4"] #app[data-screen=home] .lede { color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .45); }
+html[data-bg="4"] #app[data-screen=home] .clap { background: #F4EEE2; }
+html[data-bg="4"] #app[data-screen=home] .clap i { background: repeating-linear-gradient(-45deg, #F4EEE2 0 5px, #17140F 5px 10px); border-color: #F4EEE2; }
+@media (min-width: 960px) { html[data-bg="4"] #app[data-screen=home] .home-r .strip-head { color: rgba(255, 255, 255, .85); border-color: rgba(255, 255, 255, .3); }
+  html[data-bg="4"] #app[data-screen=home] .home-r .strip-head span:first-child { color: #fff; } }
+@media (max-width: 959px) { html[data-bg="4"] #app[data-screen=home] .herobg { height: 560px; } }
+
+/* 5 · Velvet curtains — the site is the lit screen between red curtains */
+html[data-bg="5"] #bgfx { background: radial-gradient(ellipse at 50% 0%, #4a1418 0%, #1d0a0c 70%); }
+.curtain { position: absolute; top: 0; bottom: 0; width: max(14px, calc((100vw - 1184px) / 2 + 30px));
+  background: repeating-linear-gradient(90deg, #6e0f15 0, #b4232c 16px, #d23a40 22px, #8d151c 34px, #5c0c11 46px);
+  box-shadow: inset 0 -80px 120px rgba(0, 0, 0, .45); }
+.curtain.l { left: 0; border-radius: 0 0 60% 0 / 0 0 12% 0; } .curtain.r { right: 0; border-radius: 0 0 0 60% / 0 0 0 12%; }
+.valance { position: absolute; top: 0; left: 0; right: 0; height: 18px; background: repeating-linear-gradient(90deg, #6e0f15 0, #b4232c 14px, #6e0f15 28px);
+  -webkit-mask: radial-gradient(14px at 50% 100%, transparent 98%, #000) 0 0 / 28px 100%; mask: radial-gradient(14px at 50% 100%, transparent 98%, #000) 0 0 / 28px 100%; }
+html[data-bg="5"]:not(.in-game) #app { background: var(--paper); box-shadow: 0 0 0 2px #17140F, 0 0 90px 20px rgba(255, 214, 150, .28); max-width: 1184px; }
+@media (max-width: 1240px) { html[data-bg="5"]:not(.in-game) #app { width: calc(100% - 28px); } }
+html[data-bg="5"] .home-l, html[data-bg="5"] .home-r, html[data-bg="5"] main.center, html[data-bg="5"] main.filmpick { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+html[data-bg="5"] .top::before { display: none; }
+
+/* 6 · Night wall — crisp full-colour posters on dark, content on cards */
+.pgrid6 { position: absolute; top: 50%; left: 50%; width: max(150vmax, 1500px); display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 14px;
+  transform: translate(-50%, -50%) rotate(-8deg); }
+html[data-bg="6"] #bgfx { background: #121014; }
+html[data-bg="6"] .pgrid6 img { box-shadow: 0 6px 16px rgba(0, 0, 0, .5); }
+
+/* 7 · Flashlight — a spotlight reveals the wall */
+html[data-bg="7"] #bgfx { background: #0b0a0c; }
+.lampwrap { position: absolute; inset: 0;
+  -webkit-mask: radial-gradient(circle 300px at var(--mx, 50vw) var(--my, 40vh), #000 0%, rgba(0, 0, 0, .9) 35%, transparent 100%);
+  mask: radial-gradient(circle 300px at var(--mx, 50vw) var(--my, 40vh), #000 0%, rgba(0, 0, 0, .9) 35%, transparent 100%); }
+
+/* 8 · Halftone print — red-and-cream dot posters */
+html[data-bg="8"] #bgfx { background: var(--paper); }
+.pgrid6.halftone { background: #E0412F; }
+.pgrid6.halftone img { mix-blend-mode: multiply; filter: grayscale(1) contrast(1.5) brightness(1.15); border-radius: 0; }
+html[data-bg="8"] #bgfx::after { content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at center, transparent 0 1.7px, var(--paper) 2.3px) 0 0 / 6px 6px; }
+
+/* 9 · Neon marquee — night sky, glowing bulbs around the main card */
+html[data-bg="9"] #bgfx { background: radial-gradient(ellipse at 50% -10%, #3a1d45 0%, #140c1a 55%, #09070b 100%); }
+.stars { position: absolute; inset: 0; background:
+  radial-gradient(1.5px 1.5px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 70% 20%, #fff, transparent),
+  radial-gradient(1.2px 1.2px at 40% 70%, #fff, transparent), radial-gradient(1px 1px at 85% 60%, #fff, transparent),
+  radial-gradient(1.4px 1.4px at 10% 85%, #fff, transparent), radial-gradient(1px 1px at 55% 45%, #fff, transparent);
+  background-size: 340px 340px; opacity: .7; }
+html[data-bg="9"]:not(.in-game) .home-l, html[data-bg="9"]:not(.in-game) main.center, html[data-bg="9"]:not(.in-game) main.filmpick {
+  outline: 9px dotted #FFD36B; outline-offset: 7px; animation: bulbs 1.6s steps(2) infinite; }
+@keyframes bulbs { 0% { outline-color: #FFD36B; filter: drop-shadow(0 0 10px rgba(255, 200, 90, .65)); } 100% { outline-color: #FFF1C2; filter: drop-shadow(0 0 18px rgba(255, 200, 90, .9)); } }
+@media (prefers-reduced-motion: reduce) { html[data-bg="9"] .home-l { animation: none !important; } }
+
+/* 10 · Ticket pattern — bold red with cream tickets */
+html[data-bg="10"] #bgfx { background-color: #E0412F;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='110' viewBox='0 0 180 110'%3E%3Cg transform='rotate(-8 90 55)'%3E%3Cpath d='M30 30h120v14a8 8 0 0 0 0 16v14H30V60a8 8 0 0 0 0-16z' fill='%23F4EEE2' opacity='.9'/%3E%3Cpath d='M118 32v42' stroke='%23E0412F' stroke-width='2' stroke-dasharray='3 3'/%3E%3Ctext x='74' y='57' font-family='monospace' font-size='11' font-weight='700' fill='%23E0412F' text-anchor='middle'%3EADMIT ONE%3C/text%3E%3C/g%3E%3C/svg%3E");
+  background-size: 180px 110px; }
+/* switcher: one swipeable row */
+#wallpick { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; width: max-content; max-width: calc(100% - 20px); scrollbar-width: none; }
+#wallpick::-webkit-scrollbar { display: none; }
+#wallpick button, #wallpick span { flex: none; white-space: nowrap; }
+@media (max-width: 959px) { #wallpick { bottom: 10px; top: auto; } }

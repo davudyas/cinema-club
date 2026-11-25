@@ -2,6 +2,7 @@
 import { NET_MODE, openChannel, LoopChannel, fileReport } from './net.js';
 import { filterText } from './filter.js';
 import { sfx, buzz, unlock, soundOn, setSound } from './sound.js';
+import { BG_NAMES, applyBg, setFilms, decorate, bgActive } from './backdrops.js';
 import * as M from './movies.js';
 import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle, seededRng, hashString,
   WIN_TARGET, MAX_ROUNDS, CHAIN_TURN_MS, CHAIN_MAX_USES } from './games.js';
@@ -98,12 +99,17 @@ const WALL_OFF = ['spin', 'round', 'chain', 'cards', 'chat', 'dailyload'];
 function updatePosterWall(screen) {
   const w = $('#posterwall');
   if (w) w.classList.toggle('off', WALL_OFF.includes(screen));
+  const fx = $('#bgfx');
+  if (fx) fx.classList.toggle('off', WALL_OFF.includes(screen));
+  document.documentElement.classList.toggle('in-game', WALL_OFF.includes(screen));
+  if (screen === 'home') decorate();
 }
 async function buildPosterWall() {
   try {
     if (navigator.connection && navigator.connection.saveData) return;
     if ((await M.detectMode()) !== 'tmdb' || $('#posterwall')) return;
     const films = await M.getPool();
+    setFilms(films);
     const urls = [...new Set(films.map((f) => f.poster).filter(Boolean))].slice(0, 36).map((u) => u.replace('/w342/', '/w154/'));
     if (urls.length < 12) return;
     while (urls.length < 36) urls.push(...urls.slice(0, 36 - urls.length));
@@ -118,21 +124,20 @@ async function buildPosterWall() {
   } catch (e) { /* the wall is decoration only */ }
 }
 
-// Design preview for the poster wall: open the site with ?preview=wall (or ?wall=1..5)
-(function wallPreview() {
+// Background design preview: open the site with ?preview=bg (or ?bg=1..10)
+(function bgPreview() {
   const q = new URLSearchParams(location.search);
-  const pick = q.get('wall');
-  if (pick && /^[1-5]$/.test(pick)) document.documentElement.dataset.wall = pick;
-  if (q.get('preview') !== 'wall') return;
-  const names = ['Soft veil', 'Side lights', 'Frosted glass', 'Duotone', 'Ambient glow'];
+  const pick = q.get('bg');
+  let cur = pick && /^(10|[1-9])$/.test(pick) ? pick : '';
+  if (q.get('preview') === 'bg' && !cur) cur = '1';
+  if (cur) applyBg(cur);
+  if (q.get('preview') !== 'bg') return;
   const bar = document.createElement('div');
   bar.id = 'wallpick';
   const render = () => {
-    const cur = document.documentElement.dataset.wall || '';
-    bar.innerHTML = '<span>Background:</span>' + names.map((n, i) => `<button data-w="${i + 1}" class="${cur === String(i + 1) ? 'on' : ''}">${i + 1} · ${n}</button>`).join('');
+    bar.innerHTML = '<span>Background:</span>' + BG_NAMES.map((n, i) => `<button data-w="${i + 1}" class="${bgActive() === String(i + 1) ? 'on' : ''}">${i + 1} · ${n}</button>`).join('');
   };
-  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (!b) return; document.documentElement.dataset.wall = b.dataset.w; render(); });
-  if (!document.documentElement.dataset.wall) document.documentElement.dataset.wall = '1';
+  bar.addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (!b) return; applyBg(b.dataset.w); render(); });
   render();
   document.body.appendChild(bar);
 })();
@@ -289,7 +294,9 @@ function nameBlockHtml() {
 
 const VIEWS = {
   home: () => `
+    <div class="herobg" data-herobg></div>
     <header class="top">${logo()}${topRight(onlinePill(), soundBtn(), themeBtn())}</header>
+    <div class="belt" data-belt="top"></div>
     <main class="home">
       <div class="home-l">
 ${nameBlockHtml()}
@@ -330,6 +337,7 @@ ${nameBlockHtml()}
       </section>
       </div>
     </main>
+    <div class="belt" data-belt="bottom"></div>
     ${footerHtml()}`,
 
   dailyintro: () => {
