@@ -148,8 +148,11 @@ export async function searchMovies(q) {
     if (!m.poster_path) score -= 2;
     return { m, score };
   }).sort((a, b) => b.score - a.score);
-  const solid = ranked.filter((x) => (x.m.vote_count || 0) >= 15);
-  return (solid.length >= 3 ? solid : ranked).slice(0, 7).map((x) => norm(x.m));
+  // hide look-alikes nobody has seen next to a famous match (e.g. "Interstellar Wars" under "Interstellar")
+  const top = Math.max(0, ...ranked.map((x) => x.m.vote_count || 0));
+  const floor = Math.max(15, top * 0.01);
+  const solid = ranked.filter((x) => (x.m.vote_count || 0) >= floor && !(x.m.genre_ids || []).includes(99));
+  return (solid.length ? solid : ranked).slice(0, 7).map((x) => norm(x.m));
 }
 
 export async function personMovies(personId) {
