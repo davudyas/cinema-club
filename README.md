@@ -4,6 +4,9 @@ A movie version of the "game first, then chat" idea: get matched with a random f
 
 Includes a light and dark theme (follows your device, toggle with ☾/☀︎) and a ✕ Leave button on every screen of a match, from searching to the chat (tap twice).
 
+## Talk about a film
+Just finished a movie? Tap **💬 Talk about a film**, search it, and you're matched with someone who picked the same film. The "Now discussing" list shows which films others are waiting to talk about, so you can join with one tap. The chat opens straight away with the film pinned and three spoiler-friendly question cards; either person can tap 🎲 to play a movie game together and come back to the chat afterwards.
+
 ## Mini-games
 | Game | How it works |
 |---|---|

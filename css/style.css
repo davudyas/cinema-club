@@ -324,3 +324,33 @@ input[type=range] { width: 100%; accent-color: var(--red); height: 28px; }
 .online b { flex: none; }
 @media (max-width: 380px) { .logo { font-size: 19px; } }
 @media (max-width: 440px) { .chat-actions .lbl { display: none; } .chat-actions .btn.small { padding: 7px 10px; } }
+
+/* ---------- talk about a film ---------- */
+.btn.ink { background: var(--ink); color: var(--paper); }
+.btn.ink:hover:not(:disabled) { filter: brightness(1.15); }
+.filmpick { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 8px 0 30px; }
+.filmpick h2 { font: 800 30px/1.05 var(--display); letter-spacing: -.02em; margin: 6px 0 0; }
+.filmpick > .muted { margin: 0; line-height: 1.45; }
+.discussing { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; }
+.discussing .strip-head { margin-bottom: 2px; }
+.disc { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 7px 12px 7px 7px; text-align: left; transition: border-color .15s, transform .15s; }
+.disc:hover { border-color: var(--edge); transform: translateY(-1px); }
+.disc img, .disc .noimg { width: 38px; height: 57px; border-radius: 6px; object-fit: cover; background: var(--screen); display: grid; place-items: center; flex: none; }
+.disc > span:nth-child(2) { flex: 1; min-width: 0; }
+.disc b { font-size: 15px; }
+.disc em { font-style: normal; color: var(--muted); font-size: 13px; }
+.disc small { display: block; color: var(--green); font-weight: 700; font-size: 12.5px; margin-top: 2px; }
+.disc .go { font-weight: 800; font-size: 13px; color: var(--red); flex: none; }
+.filmwait { justify-content: flex-start; padding-top: 24px; }
+.filmwait h2 em { font-style: normal; color: var(--red); }
+.filmwait .discussing { max-width: 420px; }
+.filmposter { position: relative; width: 150px; }
+.filmposter img, .filmposter > span { width: 150px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 14px; border: 2px solid var(--edge); box-shadow: 0 6px 0 var(--shadow); display: grid; place-items: center; font-size: 50px; background: var(--card); }
+.filmposter { animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: translateY(-4px) rotate(-1deg); } }
+.pin.film { display: flex; gap: 10px; align-items: center; background: var(--ink); color: var(--paper); padding: 8px 12px 8px 8px; }
+.pin.film img { width: 44px; height: 66px; object-fit: cover; border-radius: 6px; flex: none; }
+.pin.film .qn { position: static; display: block; color: var(--gold); margin-bottom: 2px; }
+.pin.film b { font: 800 16px var(--display); }
+.pin.film .yr { opacity: .7; font-weight: 500; font-size: 13px; }
+.pin.film small { display: block; opacity: .75; font-weight: 500; font-size: 12px; margin-top: 2px; }

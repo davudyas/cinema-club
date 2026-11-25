@@ -3,7 +3,7 @@ import { NET_MODE, openChannel, LoopChannel } from './net.js';
 import * as M from './movies.js';
 import { GAMES, GAME_IDS, availableGames, makeRound, chainLink, Bot, shuffle,
   WIN_TARGET, MAX_ROUNDS, CHAIN_TURN_MS, CHAIN_MAX_USES } from './games.js';
-import { QUESTION_CARDS, randomName, randomAvatar } from './content.js';
+import { QUESTION_CARDS, FILM_CARDS, randomName, randomAvatar } from './content.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -35,6 +35,7 @@ const S = {
   chain: null, chainRecvAt: 0, matchEnd: null,
   cards: null, picks: [], chatCards: [], messages: [], typingUntil: 0, rematch: null,
   lastGames: [], soloGame: null,
+  searchKind: 'game', film: null, filmPins: [], filmResults: [],
   h: null, // host-only private state
 };
 
@@ -101,9 +102,10 @@ const VIEWS = {
         <span class="av">${esc(profile.avatar)}</span><span>${esc(profile.name)}</span><span class="reroll" aria-hidden="true">↻</span>
       </button>
       <h1>Play first.<br><span class="hl">Then talk movies.</span></h1>
-      <p class="lede">Get matched with a random film fan, play a quick movie mini-game, and the winner picks two question cards to get the conversation rolling.</p>
+      <p class="lede">Get matched with a random film fan, play a quick movie mini-game, and the winner picks two question cards to get the conversation rolling. Just finished a film? Find someone who watched it too.</p>
       <div class="cta">
         <button class="btn primary big" data-act="match">🎟️ Random match</button>
+        <button class="btn ink big" data-act="filmpick">💬 Talk about a film</button>
         <button class="btn gold" data-act="solo">🍿 Play solo vs. the Projectionist</button>
         <div class="row">
           <button class="btn" data-act="create">Create room</button>
@@ -126,6 +128,30 @@ const VIEWS = {
         </div>
       </section>
       <p class="fine">Be kind. Don't share personal info. You can leave or block anyone, anytime.<span data-datamode></span></p>
+    </main>`,
+
+  filmpick: () => `
+    <header class="top">${logo()}${topRight(onlinePill(), leaveBtn())}</header>
+    <main class="filmpick">
+      <h2>What did you just watch?</h2>
+      <p class="muted">Pick the film and we'll find someone who's seen it too. Spoilers allowed — you've both finished it.</p>
+      <form class="csearch" data-form="film">
+        <input name="q" placeholder="Search a film…" autocomplete="off" data-fq aria-label="Search a film" />
+        <div class="cresults" data-fresults></div>
+      </form>
+      <section class="discussing" data-discussing>${discussingHtml()}</section>
+    </main>`,
+
+  filmsearching: () => `
+    <header class="top">${logo()}${topRight(onlinePill(), leaveBtn())}</header>
+    <main class="center filmwait">
+      <div class="filmposter">${S.film.poster ? `<img src="${esc(S.film.poster)}" alt="">` : '<span>🎬</span>'}</div>
+      <h2>Looking for someone who watched <em>${esc(S.film.title)}</em>…</h2>
+      <p class="muted">You'll show up under “Now discussing” for everyone, so others can join you.</p>
+      <div class="cta">
+        <button class="btn" data-act="filmpick">Pick a different film</button>
+      </div>
+      <section class="discussing" data-discussing>${discussingHtml()}</section>
     </main>`,
 
   searching: () => `
@@ -278,23 +304,23 @@ const VIEWS = {
 
   chat: () => `
     <header class="top chat-top">
-      <div class="who"><span class="av">${esc(S.partner.avatar)}</span><div><b>${esc(S.partner.name)}</b><small data-typing>${S.partnerGone ? 'left the chat' : S.roomKind === 'friends' ? 'in your room' : 'matched just now'}</small></div></div>
+      <div class="who"><span class="av">${esc(S.partner.avatar)}</span><div><b>${esc(S.partner.name)}</b><small data-typing>${S.partnerGone ? 'left the chat' : statusLine()}</small></div></div>
       <div class="chat-actions">
-        <button class="btn small gold" data-act="rematch" ${S.partnerGone ? 'disabled' : ''} title="Play another game">🎲<span class="lbl"> Another game</span></button>
+        <button class="btn small gold" data-act="rematch" ${S.partnerGone ? 'disabled' : ''} title="Play a movie game together">🎲<span class="lbl"> ${S.roomKind === 'film' ? 'Play a game' : 'Another game'}</span></button>
         <button class="btn small" data-act="menu" aria-label="More">⋯</button>
         ${leaveBtn()}
       </div>
       <div class="menu hidden" data-menu>
         <button data-act="leave">🏠 Leave &amp; go home</button>
         <button data-act="theme">${isDark() ? 'Light mode' : 'Dark mode'}</button>
-        ${S.roomKind === 'match' ? '<button data-act="block" class="danger">Block &amp; leave</button>' : ''}
+        ${S.roomKind !== 'friends' ? '<button data-act="block" class="danger">Block &amp; leave</button>' : ''}
       </div>
     </header>
-    <div class="pins">${S.chatCards.map((id, i) => `<div class="pin"><span class="qn">Q${i + 1}</span>${esc(QUESTION_CARDS[id])}</div>`).join('')}</div>
+    <div class="pins">${filmPinsHtml()}${S.chatCards.map((id, i) => `<div class="pin"><span class="qn">Q${S.filmPins.length + i + 1}</span>${esc(QUESTION_CARDS[id])}</div>`).join('')}</div>
     <div class="banner hidden" data-banner></div>
     <main class="msgs" data-msgs>${S.messages.map(msgHtml).join('')}</main>
     <form class="composer" data-form="chat">
-      <input name="text" maxlength="300" placeholder="${S.partnerGone ? 'Chat closed' : 'Say something about movies…'}" autocomplete="off" ${S.partnerGone ? 'disabled' : ''} />
+      <input name="text" maxlength="300" placeholder="${S.partnerGone ? 'Chat closed' : S.roomKind === 'film' ? `Talk about ${esc(S.film.title)}…` : 'Say something about movies…'}" autocomplete="off" ${S.partnerGone ? 'disabled' : ''} />
       <button class="btn primary" type="submit" ${S.partnerGone ? 'disabled' : ''} aria-label="Send">➤</button>
     </form>`,
 
@@ -304,13 +330,37 @@ const VIEWS = {
       <div class="big-emoji">🚪</div>
       <h2>${esc(S.partner ? S.partner.name : 'Your co-star')} left the theater.</h2>
       <div class="cta">
-        <button class="btn primary big" data-act="match">🎟️ Find a new match</button>
+        ${S.roomKind === 'film' && S.film ? `<button class="btn primary big" data-act="filmagain">💬 Find someone else for ${esc(S.film.title)}</button>` : '<button class="btn primary big" data-act="match">🎟️ Find a new match</button>'}
         <button class="link" data-act="home">Home</button>
       </div>
     </main>`,
 };
 
 const AFTER = {
+  filmpick() {
+    M.detectMode();
+    let tq;
+    const q = $('[data-fq]');
+    if (window.matchMedia('(pointer:fine)').matches) q.focus();
+    q.addEventListener('input', () => {
+      clearTimeout(tq);
+      tq = setTimeout(async () => {
+        const val = q.value;
+        const box = $('[data-fresults]');
+        if (!box) return;
+        if (val.trim().length < 2) { box.innerHTML = ''; return; }
+        try {
+          await M.detectMode();
+          const res = await M.searchMovies(val);
+          if (q.value !== val || !$('[data-fresults]')) return;
+          S.filmResults = res;
+          box.innerHTML = res.length ? res.map((m, i) => `<button type="button" class="cres" data-act="pickfilm" data-i="${i}">${m.poster ? `<img src="${esc(m.poster)}" alt="">` : '<span class="noimg">🎬</span>'}<span>${esc(m.title)} <em>${m.year || ''}</em></span></button>`).join('')
+            : '<p class="muted small">No films found</p>';
+        } catch (e) { box.innerHTML = '<p class="muted small">Search failed — try again</p>'; }
+      }, 280);
+    });
+    connectLobby().then(updateDiscussing);
+  },
   home() {
     const dm = $('[data-datamode]');
     M.detectMode().then((m) => { if (m === 'demo' && dm) dm.innerHTML = '<br><em>Demo film data — add a TMDB key for real posters & all 7 games.</em>'; });
@@ -504,22 +554,59 @@ function pushMsg(m) {
   }
 }
 const sys = (html) => pushMsg({ sys: true, html });
+function statusLine() {
+  if (S.roomKind === 'friends') return 'in your room';
+  if (S.roomKind === 'film' && S.film) return `also watched ${S.film.title}`;
+  return 'online';
+}
+function filmPinsHtml() {
+  if (S.roomKind !== 'film' || !S.film) return '';
+  const f = S.film;
+  return `<div class="pin film">${f.poster ? `<img src="${esc(f.poster)}" alt="">` : ''}<div><span class="qn">Now discussing</span><b>${esc(f.title)}</b>${f.year ? ` <span class="yr">${f.year}</span>` : ''}<small>Spoilers allowed</small></div></div>`
+    + S.filmPins.map((q, i) => `<div class="pin"><span class="qn">Q${i + 1}</span>${esc(q)}</div>`).join('');
+}
+// films other people are waiting to talk about (from lobby presence)
+function discussingList() {
+  if (!S.lobby) return [];
+  const by = new Map();
+  for (const p of S.lobby.peers()) {
+    if (p.key === myId || p.mode !== 'waiting' || p.kind !== 'film' || !p.film || !p.film.id) continue;
+    const e = by.get(p.film.id) || { film: p.film, n: 0 };
+    e.n++; by.set(p.film.id, e);
+  }
+  return [...by.values()].sort((a, b) => b.n - a.n).slice(0, 8);
+}
+function discussingHtml() {
+  const list = discussingList();
+  const mine = S.film && S.searching && S.searchKind === 'film' ? S.film.id : null;
+  const rows = list.filter((e) => e.film.id !== mine);
+  return `<div class="strip-head"><span>Now discussing</span><span>${rows.length ? 'tap to join' : 'live'}</span></div>`
+    + (rows.length ? rows.map((e) => `<button class="disc" data-act="joinfilm" data-id="${esc(e.film.id)}">${e.film.poster ? `<img src="${esc(e.film.poster)}" alt="">` : '<span class="noimg">🎬</span>'}<span><b>${esc(e.film.title)}</b> <em>${esc(e.film.year || '')}</em><small>${e.n} waiting to talk</small></span><span class="go">Join →</span></button>`).join('')
+      : `<p class="muted small">${S.screen === 'filmsearching' || (S.searching && S.searchKind === 'film') ? 'No other films are being discussed right now.' : 'Nobody else is waiting right now. Pick your film and you\'ll be first in line.'}</p>`);
+}
+function updateDiscussing() { const el = $('[data-discussing]'); if (el) el.innerHTML = discussingHtml(); }
+function seededPick(arr, seed, n) {
+  let h = 2166136261; for (const c of String(seed)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; const j = h % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a.slice(0, n);
+}
 function updateTyping() {
   const el = $('[data-typing]');
   if (!el || S.partnerGone) return;
-  el.textContent = Date.now() < S.typingUntil ? 'typing…' : S.roomKind === 'friends' ? 'in your room' : 'online';
+  el.textContent = Date.now() < S.typingUntil ? 'typing…' : statusLine();
 }
 function updateBanner() {
   const b = $('[data-banner]');
   if (!b) return;
   if (S.rematch === 'in') {
-    b.innerHTML = `<span>🎲 ${esc(S.partner.name)} wants to play another game</span><button class="btn small primary" data-act="rematchyes">Let's go</button><button class="btn small" data-act="rematchno">Not now</button>`;
+    b.innerHTML = `<span>🎲 ${esc(S.partner.name)} wants to play a movie game</span><button class="btn small primary" data-act="rematchyes">Let's go</button><button class="btn small" data-act="rematchno">Not now</button>`;
     b.classList.remove('hidden');
   } else if (S.rematch === 'out') {
     b.innerHTML = `<span class="pulse">Waiting for ${esc(S.partner.name)} to accept…</span>`;
     b.classList.remove('hidden');
   } else if (S.partnerGone) {
-    b.innerHTML = `<span>${esc(S.partner.name)} left.</span><button class="btn small primary" data-act="match">New match</button><button class="btn small" data-act="home">Home</button>`;
+    b.innerHTML = `<span>${esc(S.partner.name)} left.</span><button class="btn small primary" data-act="${S.roomKind === 'film' ? 'filmagain' : 'match'}">New match</button><button class="btn small" data-act="home">Home</button>`;
     b.classList.remove('hidden');
   } else b.classList.add('hidden');
 }
@@ -540,6 +627,7 @@ async function connectLobby() {
     S.online = peers.length;
     S.waiting = peers.filter((p) => p.mode === 'waiting').length;
     updateOnline();
+    updateDiscussing();
     if (S.searching && !S.pairing) tryPair(peers);
   });
   try {
@@ -555,13 +643,15 @@ async function connectLobby() {
 function trackLobby() {
   if (!S.lobby || S.lobbyOk === false) return;
   return S.lobby.track({
-    mode: S.searching ? 'waiting' : 'idle', since: S.searchSince,
+    mode: S.searching ? 'waiting' : 'idle', since: S.searchSince, kind: S.searchKind,
+    film: S.searching && S.searchKind === 'film' && S.film ? { id: S.film.id, title: S.film.title, year: S.film.year, poster: S.film.poster } : null,
     name: profile.name, avatar: profile.avatar, dev: profile.dev, blocks: profile.blocks.slice(-50),
   });
 }
 const compatible = (a, b) => !(a.blocks || []).includes(b.dev) && !(b.blocks || []).includes(a.dev) && (NET_MODE === 'local' || a.dev !== b.dev);
 function tryPair(peers) {
-  const w = peers.filter((p) => p.mode === 'waiting').sort((a, b) => (a.since - b.since) || (a.key < b.key ? -1 : 1));
+  const sameQueue = (p) => (p.kind || 'game') === S.searchKind && (S.searchKind !== 'film' || (p.film && S.film && p.film.id === S.film.id));
+  const w = peers.filter((p) => p.mode === 'waiting' && sameQueue(p)).sort((a, b) => (a.since - b.since) || (a.key < b.key ? -1 : 1));
   const used = new Set();
   let partner = null;
   for (let i = 0; i < w.length && !partner; i++) {
@@ -575,23 +665,35 @@ function tryPair(peers) {
   }
   if (!partner) return;
   S.pairing = true;
-  joinRoom('m-' + [myId, partner.key].sort().join('-'), 'match', partner.key);
+  const film = S.searchKind === 'film';
+  joinRoom((film ? 'f-' : 'm-') + [myId, partner.key].sort().join('-'), film ? 'film' : 'match', partner.key);
 }
 async function startSearch() {
   if (NET_MODE !== 'local' && S.lobbyOk === false) { toast('Matchmaking is offline right now — try a room or solo'); return; }
   await leaveRoom();
-  S.searching = true; S.searchSince = Date.now(); S.pairing = false;
+  S.searching = true; S.searchSince = Date.now(); S.pairing = false; S.searchKind = 'game';
   go('searching');
   await connectLobby();
   await trackLobby();
   if (S.lobby) setTimeout(() => S.searching && !S.pairing && tryPair(S.lobby.peers()), 300);
 }
 function stopSearch() { S.searching = false; S.pairing = false; clearTimeout(S.pairTimer); trackLobby(); }
+async function startFilmSearch(film) {
+  if (NET_MODE !== 'local' && S.lobbyOk === false) { toast('Matchmaking is offline right now — try again soon'); return; }
+  await leaveRoom();
+  resetMatch();
+  S.film = film; S.searchKind = 'film';
+  S.searching = true; S.searchSince = Date.now(); S.pairing = false;
+  go('filmsearching');
+  await connectLobby();
+  await trackLobby();
+  if (S.lobby) setTimeout(() => S.searching && !S.pairing && tryPair(S.lobby.peers()), 300);
+}
 
 function resetMatch() {
   hostStop();
   Object.assign(S, { partner: null, partnerGone: false, isHost: false, bot: null, game: null, scores: {}, round: null, result: null,
-    chain: null, matchEnd: null, cards: null, picks: [], chatCards: [], messages: [], rematch: null, typingUntil: 0 });
+    chain: null, matchEnd: null, cards: null, picks: [], chatCards: [], filmPins: [], messages: [], rematch: null, typingUntil: 0 });
 }
 async function leaveRoom(silent) {
   clearTimeout(S.pairTimer);
@@ -604,7 +706,7 @@ async function joinRoom(code, kind, expectKey) {
   await leaveRoom(true);
   resetMatch();
   S.roomCode = code; S.roomKind = kind; S.expect = expectKey || null;
-  if (kind === 'match') { S.searching = false; trackLobby(); }
+  if (kind === 'match' || kind === 'film') { S.searching = false; trackLobby(); }
   const ch = openChannel('room-' + code, myId);
   S.room = ch;
   ch.onSync((peers) => onRoomPeers(ch, peers));
@@ -613,11 +715,11 @@ async function joinRoom(code, kind, expectKey) {
   try { await ch.ready; } catch (e) { toast('Could not connect — check your connection'); S.room = null; return go('home'); }
   if (ch !== S.room) return;
   await ch.track({ name: profile.name, avatar: profile.avatar, dev: profile.dev, joined: Date.now() });
-  if (kind === 'match') {
+  if (kind === 'match' || kind === 'film') {
     S.pairTimer = setTimeout(async () => {
       if (ch === S.room && !S.partner) { // partner never showed up — back to the queue
         await leaveRoom(true);
-        S.pairing = false; S.searching = true; go('searching'); trackLobby();
+        S.pairing = false; S.searching = true; go(kind === 'film' ? 'filmsearching' : 'searching'); trackLobby();
       }
     }, 8000);
   }
@@ -639,6 +741,13 @@ function onRoomPeers(ch, peers) {
     S.scores = { [myId]: 0, [p.key]: 0 };
     clearTimeout(S.pairTimer); S.pairing = false;
     if (S.roomKind === 'friends') history.replaceState(null, '', location.pathname + (NET_MODE === 'local' ? '?net=local' : ''));
+    if (S.roomKind === 'film') {
+      S.filmPins = seededPick(FILM_CARDS, S.roomCode, 3);
+      sys(`You and <b>${esc(p.name)}</b> both just watched <b>${esc(S.film.title)}</b>. Spoilers allowed — go! 🍿`);
+      sys('Want a break from talking? Tap 🎲 to play a movie game together.');
+      go('chat');
+      return;
+    }
     go('spin');
     if (S.isHost) hLaterStart(() => hostStartMatch());
   } else if (!others.some((o) => o.key === S.partner.key)) {
@@ -913,6 +1022,16 @@ function acceptRematch() {
 const ACT = {
   reroll() { profile.name = randomName(); profile.avatar = randomAvatar(); save('profile', profile); trackLobby(); go('home'); },
   match() { startSearch(); },
+  filmpick() { stopSearch(); leaveRoom(); go('filmpick'); },
+  pickfilm(el) {
+    const m = S.filmResults[+el.dataset.i];
+    if (m) startFilmSearch({ id: m.id, title: m.title, year: m.year, poster: m.poster });
+  },
+  joinfilm(el) {
+    const e = discussingList().find((x) => String(x.film.id) === el.dataset.id);
+    if (e) startFilmSearch(e.film);
+  },
+  filmagain() { if (S.film) startFilmSearch(S.film); else go('filmpick'); },
   cancel() { stopSearch(); go('home'); },
   solo() { startSolo(); },
   practise(el) {
@@ -943,7 +1062,7 @@ const ACT = {
       return;
     }
     const solo = S.roomKind === 'solo';
-    const waiting = ['searching', 'roomwait', 'connecting'].includes(S.screen);
+    const waiting = ['searching', 'roomwait', 'connecting', 'filmpick', 'filmsearching'].includes(S.screen);
     stopSearch(); leaveRoom(); resetMatch(); go('home');
     toast(waiting ? 'Back home' : solo ? 'Game ended' : 'You left the match');
   },
@@ -1026,6 +1145,10 @@ app.addEventListener('submit', (e) => {
     f.text.value = '';
     pushMsg({ from: myId, text });
     send({ t: 'chat', text, ts: Date.now() });
+  }
+  if (f.dataset.form === 'film') {
+    const first = $('[data-fresults] .cres');
+    if (first) first.click();
   }
   if (f.dataset.form === 'chain') {
     const first = $('.cres');

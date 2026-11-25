@@ -129,6 +129,25 @@ export const QUESTION_CARDS = [
   'Big cinema screen or your own couch?',
 ];
 
+// Prompts for "Talk about a film" chats — spoilers are fine, both people finished it.
+export const FILM_CARDS = [
+  'First reaction in three words?',
+  'Which scene is still stuck in your head?',
+  'Did the ending land for you?',
+  'Who gave the standout performance?',
+  'Out of 5 stars — what are you giving it?',
+  'Anything you want to talk through or didn’t get?',
+  'Would you rewatch it? Why or why not?',
+  'If you could change one thing, what would it be?',
+  'Best shot or most beautiful moment?',
+  'Who would you recommend it to — and who should skip it?',
+  'How did the music or score work for you?',
+  'Did it live up to the hype?',
+  'Which character did you relate to most?',
+  'What do you think it was really about?',
+  'Favourite line or moment of dialogue?',
+];
+
 const ADJ = ['Sleepy', 'Dramatic', 'Method', 'Brooding', 'Chatty', 'Twisty', 'Noir', 'Cosmic', 'Shaky-cam', 'Slow-mo',
   'Overdubbed', 'Unrated', 'Cult', 'Director’s-cut', 'Technicolor', 'Silent', 'Midnight', 'Blockbuster', 'Indie', 'Lo-fi',
   'Plot-twist', 'Widescreen', 'Sequel-hungry', 'Black-and-white', 'Popcorn'];
